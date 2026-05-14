@@ -12,15 +12,53 @@ API backend para gerenciamento de usuários, pedidos e produtos de uma pizzaria.
 - RabbitMQ
 - Redis
 
-## Estrutura
+---
 
-Projeto organizado em arquitetura modular por feature.
+## Setup do Projeto
 
-## Executar API
+### Clonar repositório
 
 ```bash
-python src/main.py
+git clone https://github.com/LinconCarmo/pizzaria-api.git
 ```
+
+---
+
+### Entrar na pasta do projeto
+
+```bash
+cd pizzaria-api
+```
+
+---
+
+### Configurar variáveis ambiente
+
+Copiar `.env.example` para `.env`.
+
+Linux/macOS:
+
+```bash
+cp .env.example .env
+```
+
+Windows:
+
+```bash
+copy .env.example .env
+```
+
+Após copiar, ajuste os valores das variáveis conforme necessário.
+
+---
+
+### Instalar dependências
+
+```bash
+uv sync
+```
+
+---
 
 ## Infraestrutura Local
 
@@ -42,6 +80,8 @@ Ver containers ativos:
 docker ps
 ```
 
+---
+
 ## Serviços Disponíveis
 
 | Serviço | Porta |
@@ -50,6 +90,8 @@ docker ps
 | RabbitMQ | 5672 |
 | RabbitMQ UI | 15672 |
 | Redis | 6379 |
+
+---
 
 ## RabbitMQ Management UI
 
@@ -61,6 +103,7 @@ http://localhost:15672
 
 Usuário e senha definidos no `.env`.
 
+---
 
 ## Estrutura do Projeto
 
@@ -91,6 +134,8 @@ Essa abordagem melhora:
 - manutenção
 - separação de responsabilidades
 
+---
+
 ## Executar Aplicação
 
 Iniciar servidor FastAPI em modo desenvolvimento:
@@ -98,6 +143,8 @@ Iniciar servidor FastAPI em modo desenvolvimento:
 ```bash
 uv run uvicorn src.main:app --reload
 ```
+
+---
 
 ## Documentação da API
 
