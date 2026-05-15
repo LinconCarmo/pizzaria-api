@@ -4,13 +4,21 @@ API backend para gerenciamento de usuários, pedidos e produtos de uma pizzaria.
 
 ## Tecnologias
 
-- Python
+- Python 3.13.1
 - FastAPI
 - Prisma
 - MySQL
 - Docker
 - RabbitMQ
 - Redis
+
+---
+
+## Requisitos
+
+- Python 3.13.1
+- Docker
+- uv
 
 ---
 
@@ -32,15 +40,17 @@ cd pizzaria-api
 
 ---
 
+### Instalar Python 3.13.1
+
+```bash
+uv python install 3.13.1
+```
+
+---
+
 ### Configurar variáveis ambiente
 
 Copiar `.env.example` para `.env`.
-
-Linux/macOS:
-
-```bash
-cp .env.example .env
-```
 
 Windows:
 
@@ -48,7 +58,11 @@ Windows:
 copy .env.example .env
 ```
 
-Após copiar, ajuste os valores das variáveis conforme necessário.
+Linux/macOS:
+
+```bash
+cp .env.example .env
+```
 
 ---
 
@@ -128,20 +142,20 @@ Cada módulo possui sua própria organização interna, contendo:
 - repository
 - tests
 
-Essa abordagem melhora:
-- organização
-- escalabilidade
-- manutenção
-- separação de responsabilidades
-
 ---
 
 ## Executar Aplicação
 
-Iniciar servidor FastAPI em modo desenvolvimento:
-
 ```bash
 uv run uvicorn src.main:app --reload
+```
+
+---
+
+## Verificar versão do Python
+
+```bash
+uv run python --version
 ```
 
 ---
