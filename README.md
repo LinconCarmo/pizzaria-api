@@ -119,6 +119,31 @@ Usuário e senha definidos no `.env`.
 
 ---
 
+## Estrutura do Projeto
+
+O projeto segue arquitetura modular por feature, inspirada no padrão utilizado no NestJS.
+
+```text
+src/
+├── core/
+├── infra/
+├── modules/
+│   ├── health/
+│   └── users/
+├── shared/
+├── app.module.py
+└── main.py
+```
+
+Cada módulo possui sua própria organização interna, contendo:
+- controller
+- service
+- schema
+- repository
+- tests
+
+---
+
 ## Executar Aplicação
 
 ```bash
@@ -131,4 +156,14 @@ uv run uvicorn src.main:app --reload
 
 ```bash
 uv run python --version
+```
+
+---
+
+## Documentação da API
+
+Swagger/OpenAPI automático disponível em:
+
+```text
+http://127.0.0.1:8000/docs
 ```
