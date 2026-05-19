@@ -200,3 +200,5 @@ Gerar client:
 ```bash
 uv run prisma generate --schema=src/infra/prisma/schema.prisma
 ```
+
+``` teste branch ```
