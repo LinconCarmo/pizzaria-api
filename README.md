@@ -170,6 +170,23 @@ http://127.0.0.1:8000/docs
 
 ---
 
+## Variáveis de Ambiente
+
+As configurações da aplicação são centralizadas via Pydantic Settings (`src/core/config.py`).
+
+Exemplo de variáveis utilizadas:
+
+```env
+DATABASE_URL=mysql://root:root@localhost:3306/pizzaria
+REDIS_URL=redis://localhost:6379
+RABBITMQ_URL=amqp://guest:guest@localhost:5672
+JWT_SECRET=change_me
+APP_ENV=development
+LOG_LEVEL=debug
+```
+
+---
+
 ## Prisma
 
 Executar migration:
