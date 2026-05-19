@@ -168,6 +168,7 @@ Swagger/OpenAPI automático disponível em:
 http://127.0.0.1:8000/docs
 ```
 
+---
 
 ## Variáveis de Ambiente
 
@@ -182,4 +183,20 @@ RABBITMQ_URL=amqp://guest:guest@localhost:5672
 JWT_SECRET=change_me
 APP_ENV=development
 LOG_LEVEL=debug
+```
+
+---
+
+## Prisma
+
+Executar migration:
+
+```bash
+uv run prisma migrate dev --name init --schema=src/infra/prisma/schema.prisma
+```
+
+Gerar client:
+
+```bash
+uv run prisma generate --schema=src/infra/prisma/schema.prisma
 ```
