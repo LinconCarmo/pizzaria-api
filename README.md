@@ -167,3 +167,19 @@ Swagger/OpenAPI automático disponível em:
 ```text
 http://127.0.0.1:8000/docs
 ```
+
+---
+
+## Prisma
+
+Executar migration:
+
+```bash
+uv run prisma migrate dev --name init --schema=src/infra/prisma/schema.prisma
+```
+
+Gerar client:
+
+```bash
+uv run prisma generate --schema=src/infra/prisma/schema.prisma
+```
