@@ -1,13 +1,20 @@
+from collections.abc import Awaitable, Callable
 from time import perf_counter
 from uuid import uuid4
 
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from src.core.logger import logger
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         request_id = str(uuid4())
 
         logger.info(

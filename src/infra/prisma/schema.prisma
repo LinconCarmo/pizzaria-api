@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-py"
+  provider             = "prisma-client-py"
+  recursive_type_depth = 5
 }
 
 datasource db {
@@ -10,5 +11,28 @@ datasource db {
 model HealthCheck {
   id        Int      @id @default(autoincrement())
   status    String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("health_checks")
+}
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+model User {
+  id             Int       @id @default(autoincrement())
+  email          String    @unique
+  name           String
+  hashedPassword String    @map("hashed_password")
+  role           UserRole  @default(CUSTOMER)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@index([role])
+  @@index([deletedAt])
+  @@map("users")
 }

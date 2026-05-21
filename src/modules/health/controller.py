@@ -1,13 +1,16 @@
-from fastapi import APIRouter
+from typing import Annotated
 
-from .service import HealthService
+from fastapi import APIRouter, Depends
 
-router = APIRouter(
-    prefix="/health",
-    tags=["Health"]
-)
+from src.modules.health.dependencies import get_health_service
+from src.modules.health.schema import HealthResponse
+from src.modules.health.service import HealthService
+
+router = APIRouter(prefix="/health", tags=["Health"])
 
 
-@router.get("/")
-def health_check():
-    return HealthService.check()
+@router.get("", summary="Healthcheck")
+def health_check(
+    service: Annotated[HealthService, Depends(get_health_service)],
+) -> HealthResponse:
+    return service.check()

@@ -3,18 +3,16 @@ from fastapi.exceptions import RequestValidationError
 
 from src.core.exceptions import (
     DomainError,
-    NotFoundError,
     domain_error_handler,
     generic_exception_handler,
     validation_exception_handler,
 )
 from src.core.middlewares import LoggingMiddleware
 from src.infra.database import lifespan
-from src.modules.health.controller import router as health_router
+from src.modules.health.router import router as health_router
+from src.modules.users.router import router as users_router
 
-app = FastAPI(
-    lifespan=lifespan
-)
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(LoggingMiddleware)
 
@@ -34,9 +32,9 @@ app.add_exception_handler(
 )
 
 app.include_router(health_router)
+app.include_router(users_router)
 
 
 @app.get("/")
-def root():
+def root() -> dict[str, str]:
     return {"message": "Pizzaria API"}
-

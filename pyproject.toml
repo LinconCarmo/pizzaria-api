@@ -5,9 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13.1"
 dependencies = [
+    "email-validator>=2.2.0",
     "fastapi[standard]>=0.136.1",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
+    "bcrypt>=4.0,<5.0",
+    "passlib[bcrypt]>=1.7.4",
     "prisma>=0.15.0",
     "pydantic-settings>=2.14.1",
     "pytest>=9.0.3",
@@ -16,7 +19,112 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy>=2.1.0",
+    "poethepoet>=0.30.0",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.12",
+]
+
+[tool.poe.tasks]
+prisma-generate    = { cmd = "prisma generate --schema=src/infra/prisma/schema.prisma",                       help = "Generate Prisma client" }
+prisma-migrate-dev = { cmd = "prisma migrate dev --schema=src/infra/prisma/schema.prisma",                    help = "Apply dev migration (writes new migration if needed)" }
+prisma-deploy      = { cmd = "prisma migrate deploy --schema=src/infra/prisma/schema.prisma",                 help = "Apply pending migrations (no schema changes)" }
+lint               = { cmd = "ruff check src test",                                                           help = "ruff check" }
+format             = { cmd = "ruff format src test",                                                          help = "ruff format (apply)" }
+format-check       = { cmd = "ruff format --check src test",                                                  help = "ruff format --check" }
+type-check         = { cmd = "mypy src",                                                                      help = "mypy src" }
+test               = { cmd = 'pytest -v -m "not integration"',                                                help = "pytest (excludes integration)" }
+test-integration   = { cmd = "pytest -v -m integration",                                                      help = "pytest -m integration" }
+test-cov           = { cmd = 'pytest -v -m "not integration" --cov=src --cov-report=term-missing',            help = "pytest with coverage report" }
+start-dev          = { cmd = "uvicorn src.main:app --reload",                                                 help = "uvicorn with reload" }
+pre-commit-install = { cmd = "pre-commit install",                                                            help = "install pre-commit hooks" }
+
+[tool.poe.tasks.test-unit]
+help = "alias for test"
+ref  = "test"
+
+[tool.poe.tasks.ci]
+help     = "lint + format-check + type-check + test"
+sequence = ["lint", "format-check", "type-check", "test"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [
+    "src/infra/prisma/migrations",
+    ".venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "B008", # function calls in default args — Depends() is idiomatic FastAPI
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test/**/*.py" = ["S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+exclude = [
+    "src/infra/prisma/migrations",
+    "\\.venv",
+]
+
+[[tool.mypy.overrides]]
+module = ["passlib.*", "prisma.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["test.*"]
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["test"]
+asyncio_mode = "auto"
+markers = [
+    "integration: integration tests that require external services (MySQL via docker compose)",
+]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/infra/prisma/*",
+    "src/main.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
 ]

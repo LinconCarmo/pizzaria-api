@@ -1,4 +1,6 @@
+from src.modules.health.schema import HealthResponse
+
+
 class HealthService:
-    @staticmethod
-    def check():
-        return {"status": "ok"}
+    def check(self) -> HealthResponse:
+        return HealthResponse(status="ok")

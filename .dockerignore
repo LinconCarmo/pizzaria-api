@@ -1,0 +1,61 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Virtual Environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+test/
+
+# Mypy / Ruff caches
+.mypy_cache/
+.ruff_cache/
+
+# IDE / tooling
+.vscode/
+.idea/
+.cursor/
+.claude/
+.github/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+docs/
+README.md
+LICENSE
+
+# Docker
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Pre-commit
+.pre-commit-config.yaml
+
+# Python version pin (uv lê do pyproject)
+.python-version
