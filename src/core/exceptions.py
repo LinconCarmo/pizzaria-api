@@ -3,8 +3,19 @@ from typing import Any
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from src.core.logger import logger
+
+
+class ErrorDetail(BaseModel):
+    code: str = Field(..., examples=["NOT_FOUND"])
+    message: str = Field(..., examples=["Resource not found"])
+    details: Any | None = Field(default=None)
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail
 
 
 class DomainError(Exception):
@@ -102,7 +113,7 @@ async def generic_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    logger.exception("Unhandled exception", exc_info=exc)
+    logger.opt(exception=exc).error("unhandled_exception")
     return JSONResponse(
         status_code=500,
         content={

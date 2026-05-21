@@ -1,8 +1,10 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any, cast
+from uuid import UUID
 
 from prisma import Prisma
+from prisma.models import User
 
 from src.modules.users.schema import (
     CreateUserRequest,
@@ -12,11 +14,12 @@ from src.modules.users.schema import (
 )
 
 NOW = datetime(2026, 5, 20, 12, 0, 0, tzinfo=UTC)
+DEFAULT_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 
 
 def make_user_row(
     *,
-    id: int = 1,
+    id: UUID = DEFAULT_USER_ID,
     email: str = "ana@example.com",
     name: str = "Ana",
     role: str = "CUSTOMER",
@@ -26,7 +29,7 @@ def make_user_row(
     deleted_at: datetime | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
-        id=id,
+        id=str(id),
         email=email,
         name=name,
         role=role,
@@ -53,7 +56,7 @@ def make_update_user_request(**overrides: Any) -> UpdateUserRequest:
 
 def make_user_response(
     *,
-    id: int = 1,
+    id: UUID = DEFAULT_USER_ID,
     email: str = "ana@example.com",
     name: str = "Ana",
     role: UserRole = UserRole.CUSTOMER,
@@ -78,7 +81,7 @@ async def seed_user(
     hashed_password: str = "hashed",
     role: str = "CUSTOMER",
     **overrides: Any,
-) -> Any:
+) -> User:
     data: dict[str, Any] = {
         "email": email,
         "name": name,

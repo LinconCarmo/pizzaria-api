@@ -1,7 +1,9 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
+from src.core.exceptions import ErrorResponse
 from src.modules.users.dependencies import get_user_service
 from src.modules.users.schema import (
     CreateUserRequest,
@@ -19,6 +21,10 @@ router = APIRouter(prefix="/users", tags=["Users"])
     "",
     status_code=status.HTTP_201_CREATED,
     summary="Create user",
+    responses={
+        409: {"model": ErrorResponse, "description": "Email já cadastrado"},
+        422: {"model": ErrorResponse, "description": "Payload inválido"},
+    },
 )
 async def create_user(
     data: CreateUserRequest,
@@ -27,9 +33,13 @@ async def create_user(
     return await service.create(data)
 
 
-@router.get("/{user_id}", summary="Get user by id")
+@router.get(
+    "/{user_id}",
+    summary="Get user by id",
+    responses={404: {"model": ErrorResponse, "description": "Usuário não encontrado"}},
+)
 async def get_user(
-    user_id: int,
+    user_id: UUID,
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> UserResponse:
     return await service.get_by_id(user_id)
@@ -45,9 +55,17 @@ async def list_users(
     return await service.list_paginated(page=page, page_size=page_size, role=role)
 
 
-@router.patch("/{user_id}", summary="Update user (partial)")
+@router.patch(
+    "/{user_id}",
+    summary="Update user (partial)",
+    responses={
+        404: {"model": ErrorResponse, "description": "Usuário não encontrado"},
+        409: {"model": ErrorResponse, "description": "Email já cadastrado"},
+        422: {"model": ErrorResponse, "description": "Payload inválido"},
+    },
+)
 async def update_user(
-    user_id: int,
+    user_id: UUID,
     data: UpdateUserRequest,
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> UserResponse:
@@ -58,9 +76,10 @@ async def update_user(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Soft delete user",
+    responses={404: {"model": ErrorResponse, "description": "Usuário não encontrado"}},
 )
 async def delete_user(
-    user_id: int,
+    user_id: UUID,
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> None:
     await service.delete(user_id)

@@ -9,7 +9,7 @@ datasource db {
 }
 
 model HealthCheck {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid()) @db.Char(36)
   status    String
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -23,7 +23,7 @@ enum UserRole {
 }
 
 model User {
-  id             Int       @id @default(autoincrement())
+  id             String    @id @default(uuid()) @db.Char(36)
   email          String    @unique
   name           String
   hashedPassword String    @map("hashed_password")

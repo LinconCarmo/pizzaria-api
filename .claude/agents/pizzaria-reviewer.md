@@ -53,8 +53,9 @@ Você conhece a fundo:
 
 - [ ] Nenhum `try/except` em handlers (handlers globais cuidam)?
 - [ ] Nenhum `raise HTTPException(...)` — usar `DomainError` no service?
-- [ ] Cada endpoint tem `response_model=...` declarado?
+- [ ] Cada endpoint tem **tipo de retorno declarado** via return annotation `-> <Response>` (padrão moderno) ou `response_model=` (legado aceito)?
 - [ ] `status_code=` explícito em criações (201) e deletes (204)?
+- [ ] Endpoint tem `summary=` curto e — para `/{id}`, criações e ações de estado — `responses={404: ..., 409: ...}` documentando erros esperados no Swagger?
 - [ ] Recebe DTO via Pydantic (não `dict`, não `Body(...)` cru)?
 - [ ] Não faz acesso direto a Prisma (`from prisma import ...` é red flag)?
 - [ ] Não tem regra de negócio (cálculos, ifs de fluxo, validações cruzadas)?
@@ -82,6 +83,8 @@ Você conhece a fundo:
 - [ ] Naming: `Create<R>Request`, `Update<R>Request`, `<R>Response`, `<R>SummaryResponse`?
 - [ ] Response herda de base com `from_attributes=True`?
 - [ ] Money é `Decimal`, não `float`?
+- [ ] **IDs (PKs e FKs) são `uuid.UUID`**, não `int` nem `str`? (ver [ADR 0003](../../docs/adr/0003-ids-uuid.md))
+- [ ] Path params (`user_id`, `<feature>_id`) em controller, service e repository são `UUID`?
 - [ ] `Optional[X]` ou `Union[X, None]` → preferir `X | None` (Python 3.13)?
 - [ ] Campos têm `Field(..., description=..., examples=[...])`?
 - [ ] Validators usam `ValueError`, não `HTTPException`?
@@ -223,7 +226,10 @@ Pequeno: projeto usa Python 3.13, sintaxe moderna `X | None` é preferida.
 | Repository retorna Pydantic em vez de dict | Blocker |
 | `float` para dinheiro | Blocker |
 | `password_hash`/token em Response | Blocker |
-| Endpoint sem `response_model` | Blocker |
+| Endpoint sem tipo de retorno (nem return annotation, nem `response_model=`) | Blocker |
+| Endpoint usa `response_model=` em código novo (preferir return annotation) | Warning |
+| Endpoint sem `summary=` | Warning |
+| Endpoint `/{id}` ou criação sem `responses=` documentando 404/409 | Warning |
 | Service sem testes | Blocker |
 | `Mock()` sem `spec` | Blocker |
 | Feature nova sem `test/factories/<feature>.py` | Blocker |

@@ -1,7 +1,10 @@
+from uuid import UUID
+
 import pytest
 from httpx import AsyncClient
 from prisma import Prisma
 
+from src.modules.users.schema import UserRole
 from test.factories import make_create_user_request
 
 pytestmark = pytest.mark.integration
@@ -9,11 +12,12 @@ pytestmark = pytest.mark.integration
 
 DEFAULT_EMAIL = "ana@example.com"
 DEFAULT_PASSWORD = "strongpass123"
+NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
 
 
 async def _create_user(client: AsyncClient, **overrides: object) -> dict:
     payload = make_create_user_request(**overrides).model_dump(mode="json")
-    response = await client.post("/users", json=payload)
+    response = await client.post("/api/v1/users", json=payload)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -24,7 +28,7 @@ async def test_post_users_creates_user_in_db_when_payload_valid(
 ) -> None:
     payload = make_create_user_request().model_dump(mode="json")
 
-    response = await client.post("/users", json=payload)
+    response = await client.post("/api/v1/users", json=payload)
 
     assert response.status_code == 201
     body = response.json()
@@ -43,7 +47,7 @@ async def test_post_users_returns_409_when_email_already_exists(
     await _create_user(client)
 
     response = await client.post(
-        "/users",
+        "/api/v1/users",
         json=make_create_user_request().model_dump(mode="json"),
     )
 
@@ -55,7 +59,7 @@ async def test_post_users_returns_422_when_email_invalid(client: AsyncClient) ->
     payload = make_create_user_request().model_dump(mode="json")
     payload["email"] = "not-an-email"
 
-    response = await client.post("/users", json=payload)
+    response = await client.post("/api/v1/users", json=payload)
 
     assert response.status_code == 422
 
@@ -63,14 +67,14 @@ async def test_post_users_returns_422_when_email_invalid(client: AsyncClient) ->
 async def test_get_user_returns_user_when_exists(client: AsyncClient) -> None:
     created = await _create_user(client)
 
-    response = await client.get(f"/users/{created['id']}")
+    response = await client.get(f"/api/v1/users/{created['id']}")
 
     assert response.status_code == 200
     assert response.json()["email"] == DEFAULT_EMAIL
 
 
 async def test_get_user_returns_404_when_id_not_found(client: AsyncClient) -> None:
-    response = await client.get("/users/99999")
+    response = await client.get(f"/api/v1/users/{NON_EXISTENT_ID}")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
@@ -83,7 +87,7 @@ async def test_list_users_returns_paginated_results_when_multiple_exist(
     await _create_user(client, email="b@example.com")
     await _create_user(client, email="c@example.com")
 
-    response = await client.get("/users?page=1&page_size=2")
+    response = await client.get("/api/v1/users?page=1&page_size=2")
 
     assert response.status_code == 200
     body = response.json()
@@ -95,12 +99,10 @@ async def test_list_users_returns_paginated_results_when_multiple_exist(
 async def test_list_users_filters_by_role_when_role_query_provided(
     client: AsyncClient,
 ) -> None:
-    from src.modules.users.schema import UserRole
-
     await _create_user(client, email="customer@example.com", role=UserRole.CUSTOMER)
     await _create_user(client, email="admin@example.com", role=UserRole.ADMIN)
 
-    response = await client.get("/users?role=ADMIN")
+    response = await client.get("/api/v1/users?role=ADMIN")
 
     assert response.status_code == 200
     body = response.json()
@@ -115,7 +117,7 @@ async def test_patch_user_updates_only_provided_fields(
     created = await _create_user(client)
 
     response = await client.patch(
-        f"/users/{created['id']}",
+        f"/api/v1/users/{created['id']}",
         json={"name": "Ana Maria"},
     )
 
@@ -129,7 +131,7 @@ async def test_patch_user_updates_only_provided_fields(
 
 
 async def test_patch_user_returns_404_when_id_not_found(client: AsyncClient) -> None:
-    response = await client.patch("/users/99999", json={"name": "X"})
+    response = await client.patch(f"/api/v1/users/{NON_EXISTENT_ID}", json={"name": "X"})
 
     assert response.status_code == 404
 
@@ -141,7 +143,7 @@ async def test_patch_user_returns_409_when_changing_to_existing_email(
     other = await _create_user(client, email="other@example.com")
 
     response = await client.patch(
-        f"/users/{other['id']}",
+        f"/api/v1/users/{other['id']}",
         json={"email": "taken@example.com"},
     )
 
@@ -154,7 +156,7 @@ async def test_delete_user_returns_204_and_marks_deleted_at_in_db(
 ) -> None:
     created = await _create_user(client)
 
-    response = await client.delete(f"/users/{created['id']}")
+    response = await client.delete(f"/api/v1/users/{created['id']}")
 
     assert response.status_code == 204
     persisted = await db.user.find_unique(where={"id": created["id"]})
@@ -163,7 +165,7 @@ async def test_delete_user_returns_204_and_marks_deleted_at_in_db(
 
 
 async def test_delete_user_returns_404_when_id_not_found(client: AsyncClient) -> None:
-    response = await client.delete("/users/99999")
+    response = await client.delete(f"/api/v1/users/{NON_EXISTENT_ID}")
 
     assert response.status_code == 404
 
@@ -172,9 +174,9 @@ async def test_get_user_returns_404_when_user_soft_deleted(
     client: AsyncClient,
 ) -> None:
     created = await _create_user(client)
-    await client.delete(f"/users/{created['id']}")
+    await client.delete(f"/api/v1/users/{created['id']}")
 
-    response = await client.get(f"/users/{created['id']}")
+    response = await client.get(f"/api/v1/users/{created['id']}")
 
     assert response.status_code == 404
 
@@ -182,9 +184,9 @@ async def test_get_user_returns_404_when_user_soft_deleted(
 async def test_list_users_excludes_soft_deleted_records(client: AsyncClient) -> None:
     keep = await _create_user(client, email="keep@example.com")
     drop = await _create_user(client, email="drop@example.com")
-    await client.delete(f"/users/{drop['id']}")
+    await client.delete(f"/api/v1/users/{drop['id']}")
 
-    response = await client.get("/users")
+    response = await client.get("/api/v1/users")
 
     body = response.json()
     assert body["meta"]["total"] == 1

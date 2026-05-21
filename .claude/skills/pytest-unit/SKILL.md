@@ -7,7 +7,7 @@ description: Cria testes unitários com pytest no pizzaria-api seguindo AAA, moc
 
 Use esta skill para criar testes **unitários** (sem I/O externo) com pytest no pizzaria-api. Para testes que precisam do banco real, use a skill `pytest-integration`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção 9 — Testes). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção 10 — Testes). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
 
 ## Quando usar
 
@@ -84,16 +84,22 @@ from src.modules.orders.service import OrderService
 
 ### 2. Constantes hoisted (sem magic values)
 
+IDs são `UUID` (ver [ADR 0003](../../../docs/adr/0003-ids-uuid.md)). Para legibilidade, hoistar UUIDs determinísticos no topo do arquivo de teste — preferir `0000...-0001`, `0000...-0042` etc. para preservar a referência mental do "id 1, id 42" sem perder a tipagem forte.
+
 ```python
-ORDER_ID = 1
-NON_EXISTENT_ID = 99999
-CUSTOMER_ID = 42
+from uuid import UUID
+
+ORDER_ID = UUID("00000000-0000-4000-8000-000000000001")
+NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
+CUSTOMER_ID = UUID("00000000-0000-4000-8000-000000000042")
 DEFAULT_PRICE = Decimal("49.90")
 ```
 
+Para casos onde o ID é só "qualquer um" (ex.: gerar 20 entidades distintas), usar `uuid4()` direto — sem precisar de determinismo.
+
 ### 3. Fixtures e factories
 
-**Dados de domínio (rows Prisma, DTOs Pydantic) vêm de `test/factories/<feature>.py`** — nunca redefinir helpers locais `_raw_*`, `_user_response`, `_make_<entity>` quando a factory existe. Ver §9 do `modular-monolith.md` ("Factories para mocks e dados de teste").
+**Dados de domínio (rows Prisma, DTOs Pydantic) vêm de `test/factories/<feature>.py`** — nunca redefinir helpers locais `_raw_*`, `_user_response`, `_make_<entity>` quando a factory existe. Ver §10 do `modular-monolith.md` ("Factories para mocks e dados de teste").
 
 ```python
 from test.factories.orders import make_order_row, make_create_order_request
