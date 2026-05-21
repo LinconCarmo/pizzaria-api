@@ -21,3 +21,21 @@ dev = [
     "pytest>=9.0.3",
     "ruff>=0.15.12",
 ]
+
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+
+[tool.mypy]
+python_version = "3.13"
+strict = false
+ignore_missing_imports = true

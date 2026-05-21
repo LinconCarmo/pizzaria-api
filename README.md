@@ -200,3 +200,29 @@ Gerar client:
 ```bash
 uv run prisma generate --schema=src/infra/prisma/schema.prisma
 ```
+
+## Code Quality
+
+Run Ruff:
+
+```bash
+uv run ruff check .
+```
+
+Run formatter:
+
+```bash
+uv run ruff format .
+```
+
+Run Mypy:
+
+```bash
+uv run mypy src/
+```
+
+Run pre-commit:
+
+```bash
+uv run pre-commit run --all-files
+```
