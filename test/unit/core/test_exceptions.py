@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-import pytest
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
@@ -15,7 +14,6 @@ from src.core.exceptions import (
     generic_exception_handler,
     validation_exception_handler,
 )
-
 
 # ---------------------------------------------------------------------------
 # Hierarchy
@@ -160,4 +158,6 @@ def test_generic_exception_handler_returns_500_and_logs_exception():
             "details": None,
         }
     }
-    mock_logger.exception.assert_called_once()
+    mock_logger.opt.assert_called_once()
+    assert mock_logger.opt.call_args.kwargs.get("exception") is not None
+    mock_logger.opt.return_value.error.assert_called_once_with("unhandled_exception")

@@ -10,7 +10,7 @@ router = APIRouter(prefix="/health", tags=["Health"])
 
 
 @router.get("", summary="Healthcheck")
-def health_check(
+async def health_check(
     service: Annotated[HealthService, Depends(get_health_service)],
 ) -> HealthResponse:
     return service.check()

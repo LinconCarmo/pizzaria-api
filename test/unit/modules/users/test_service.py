@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -13,16 +14,24 @@ from src.modules.users.schema import (
 from src.modules.users.service import UserService
 from test.factories import make_create_user_request, make_user_row
 
-
-def _make_service() -> tuple[UserService, AsyncMock]:
-    repo = AsyncMock(spec=UserRepositoryProtocol)
-    service = UserService(repo)
-    return service, repo
+USER_ID = UUID("00000000-0000-4000-8000-000000000001")
+OTHER_USER_ID = UUID("00000000-0000-4000-8000-000000000042")
+NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
 
 
-@pytest.mark.asyncio
-async def test_create_hashes_password_and_calls_repository_when_valid():
-    service, repo = _make_service()
+@pytest.fixture
+def repo() -> AsyncMock:
+    return AsyncMock(spec=UserRepositoryProtocol)
+
+
+@pytest.fixture
+def service(repo: AsyncMock) -> UserService:
+    return UserService(repo)
+
+
+async def test_create_hashes_password_and_calls_repository_when_valid(
+    service: UserService, repo: AsyncMock
+):
     repo.create.return_value = make_user_row()
     data = make_create_user_request()
 
@@ -37,9 +46,9 @@ async def test_create_hashes_password_and_calls_repository_when_valid():
     assert isinstance(result, UserResponse)
 
 
-@pytest.mark.asyncio
-async def test_create_propagates_conflict_when_repository_raises():
-    service, repo = _make_service()
+async def test_create_propagates_conflict_when_repository_raises(
+    service: UserService, repo: AsyncMock
+):
     repo.create.side_effect = ConflictError("dup")
     data = make_create_user_request()
 
@@ -47,30 +56,26 @@ async def test_create_propagates_conflict_when_repository_raises():
         await service.create(data)
 
 
-@pytest.mark.asyncio
-async def test_get_by_id_returns_response_when_found():
-    service, repo = _make_service()
-    repo.get_by_id.return_value = make_user_row(id=42, email="x@y.com")
+async def test_get_by_id_returns_response_when_found(service: UserService, repo: AsyncMock):
+    repo.get_by_id.return_value = make_user_row(id=OTHER_USER_ID, email="x@y.com")
 
-    result = await service.get_by_id(42)
+    result = await service.get_by_id(OTHER_USER_ID)
 
-    assert result.id == 42
+    assert result.id == OTHER_USER_ID
     assert result.email == "x@y.com"
 
 
-@pytest.mark.asyncio
-async def test_get_by_id_raises_not_found_when_repository_returns_none():
-    service, repo = _make_service()
+async def test_get_by_id_raises_not_found_when_repository_returns_none(
+    service: UserService, repo: AsyncMock
+):
     repo.get_by_id.return_value = None
 
     with pytest.raises(NotFoundError):
-        await service.get_by_id(99)
+        await service.get_by_id(NON_EXISTENT_ID)
 
 
-@pytest.mark.asyncio
-async def test_list_paginated_computes_total_pages_correctly():
-    service, repo = _make_service()
-    repo.list_paginated.return_value = ([make_user_row(id=i) for i in range(1, 21)], 45)
+async def test_list_paginated_computes_total_pages_correctly(service: UserService, repo: AsyncMock):
+    repo.list_paginated.return_value = ([make_user_row(id=uuid4()) for _ in range(20)], 45)
 
     result = await service.list_paginated(page=1, page_size=20, role=None)
 
@@ -80,9 +85,7 @@ async def test_list_paginated_computes_total_pages_correctly():
     assert len(result.items) == 20
 
 
-@pytest.mark.asyncio
-async def test_list_paginated_returns_zero_pages_when_empty():
-    service, repo = _make_service()
+async def test_list_paginated_returns_zero_pages_when_empty(service: UserService, repo: AsyncMock):
     repo.list_paginated.return_value = ([], 0)
 
     result = await service.list_paginated(page=1, page_size=20, role=None)
@@ -92,53 +95,58 @@ async def test_list_paginated_returns_zero_pages_when_empty():
     assert result.items == []
 
 
-@pytest.mark.asyncio
-async def test_update_uses_exclude_unset_to_avoid_overwriting_unsent_fields():
-    service, repo = _make_service()
+async def test_update_uses_exclude_unset_to_avoid_overwriting_unsent_fields(
+    service: UserService, repo: AsyncMock
+):
+    repo.get_by_id.return_value = make_user_row()
     repo.update.return_value = make_user_row(name="Ana Maria")
 
-    await service.update(1, UpdateUserRequest(name="Ana Maria"))
+    await service.update(USER_ID, UpdateUserRequest(name="Ana Maria"))
 
     repo.update.assert_awaited_once()
-    _, payload = repo.update.call_args.args
-    assert payload == {"name": "Ana Maria"}
+    kwargs = repo.update.call_args.kwargs
+    assert kwargs == {"name": "Ana Maria"}
 
 
-@pytest.mark.asyncio
-async def test_update_hashes_password_when_password_in_payload():
-    service, repo = _make_service()
+async def test_update_hashes_password_when_password_in_payload(
+    service: UserService, repo: AsyncMock
+):
+    repo.get_by_id.return_value = make_user_row()
     repo.update.return_value = make_user_row()
 
-    await service.update(1, UpdateUserRequest(password="brandnewpw"))
+    await service.update(USER_ID, UpdateUserRequest(password="brandnewpw"))
 
-    _, payload = repo.update.call_args.args
-    assert "password" not in payload
-    assert "hashedPassword" in payload
-    assert payload["hashedPassword"] != "brandnewpw"
-
-
-@pytest.mark.asyncio
-async def test_update_propagates_not_found_when_repository_raises():
-    service, repo = _make_service()
-    repo.update.side_effect = NotFoundError("x")
-
-    with pytest.raises(NotFoundError):
-        await service.update(1, UpdateUserRequest(name="X"))
+    kwargs = repo.update.call_args.kwargs
+    assert "password" not in kwargs
+    assert "hashed_password" in kwargs
+    assert kwargs["hashed_password"] != "brandnewpw"
 
 
-@pytest.mark.asyncio
-async def test_delete_calls_repository_soft_delete():
-    service, repo = _make_service()
-
-    await service.delete(7)
-
-    repo.soft_delete.assert_awaited_once_with(7)
-
-
-@pytest.mark.asyncio
-async def test_delete_propagates_not_found_when_repository_raises():
-    service, repo = _make_service()
-    repo.soft_delete.side_effect = NotFoundError("x")
+async def test_update_raises_not_found_when_get_by_id_returns_none(
+    service: UserService, repo: AsyncMock
+):
+    repo.get_by_id.return_value = None
 
     with pytest.raises(NotFoundError):
-        await service.delete(7)
+        await service.update(USER_ID, UpdateUserRequest(name="X"))
+
+    repo.update.assert_not_awaited()
+
+
+async def test_delete_calls_repository_soft_delete(service: UserService, repo: AsyncMock):
+    repo.get_by_id.return_value = make_user_row()
+
+    await service.delete(USER_ID)
+
+    repo.soft_delete.assert_awaited_once_with(USER_ID)
+
+
+async def test_delete_raises_not_found_when_get_by_id_returns_none(
+    service: UserService, repo: AsyncMock
+):
+    repo.get_by_id.return_value = None
+
+    with pytest.raises(NotFoundError):
+        await service.delete(USER_ID)
+
+    repo.soft_delete.assert_not_awaited()

@@ -1,8 +1,10 @@
 from datetime import UTC, datetime
 from typing import Any, Protocol, cast
+from uuid import UUID
 
 from prisma import Prisma
 from prisma.errors import RecordNotFoundError, UniqueViolationError
+from prisma.models import User
 
 from src.core.exceptions import ConflictError, NotFoundError
 from src.modules.users.schema import UserRole
@@ -16,11 +18,11 @@ class UserRepositoryProtocol(Protocol):
         name: str,
         hashed_password: str,
         role: UserRole,
-    ) -> Any: ...
+    ) -> User: ...
 
-    async def get_by_id(self, user_id: int) -> Any | None: ...
+    async def get_by_id(self, user_id: UUID) -> User | None: ...
 
-    async def get_by_email(self, email: str) -> Any | None: ...
+    async def get_by_email(self, email: str) -> User | None: ...
 
     async def list_paginated(
         self,
@@ -28,11 +30,19 @@ class UserRepositoryProtocol(Protocol):
         page: int,
         page_size: int,
         role: UserRole | None,
-    ) -> tuple[list[Any], int]: ...
+    ) -> tuple[list[User], int]: ...
 
-    async def update(self, user_id: int, data: dict[str, Any]) -> Any: ...
+    async def update(
+        self,
+        user_id: UUID,
+        *,
+        email: str | None = None,
+        name: str | None = None,
+        hashed_password: str | None = None,
+        role: UserRole | None = None,
+    ) -> User: ...
 
-    async def soft_delete(self, user_id: int) -> None: ...
+    async def soft_delete(self, user_id: UUID) -> None: ...
 
 
 class UserRepository:
@@ -46,7 +56,7 @@ class UserRepository:
         name: str,
         hashed_password: str,
         role: UserRole,
-    ) -> Any:
+    ) -> User:
         try:
             return await self._db.user.create(
                 data=cast(
@@ -62,12 +72,12 @@ class UserRepository:
         except UniqueViolationError as exc:
             raise ConflictError(f"User with email {email} already exists") from exc
 
-    async def get_by_id(self, user_id: int) -> Any | None:
+    async def get_by_id(self, user_id: UUID) -> User | None:
         return await self._db.user.find_first(
-            where=cast(Any, {"id": user_id, "deletedAt": None}),
+            where=cast(Any, {"id": str(user_id), "deletedAt": None}),
         )
 
-    async def get_by_email(self, email: str) -> Any | None:
+    async def get_by_email(self, email: str) -> User | None:
         return await self._db.user.find_first(
             where=cast(Any, {"email": email, "deletedAt": None}),
         )
@@ -78,7 +88,7 @@ class UserRepository:
         page: int,
         page_size: int,
         role: UserRole | None,
-    ) -> tuple[list[Any], int]:
+    ) -> tuple[list[User], int]:
         where: dict[str, Any] = {"deletedAt": None}
         if role is not None:
             where["role"] = role.value
@@ -88,34 +98,47 @@ class UserRepository:
             where=cast(Any, where),
             skip=skip,
             take=page_size,
-            order=cast(Any, {"id": "asc"}),
+            order=cast(Any, {"createdAt": "asc"}),
         )
         total = await self._db.user.count(where=cast(Any, where))
         return items, total
 
-    async def update(self, user_id: int, data: dict[str, Any]) -> Any:
-        existing = await self.get_by_id(user_id)
-        if existing is None:
-            raise NotFoundError(f"User {user_id} not found")
+    async def update(
+        self,
+        user_id: UUID,
+        *,
+        email: str | None = None,
+        name: str | None = None,
+        hashed_password: str | None = None,
+        role: UserRole | None = None,
+    ) -> User:
+        data: dict[str, Any] = {}
+        if email is not None:
+            data["email"] = email
+        if name is not None:
+            data["name"] = name
+        if hashed_password is not None:
+            data["hashedPassword"] = hashed_password
+        if role is not None:
+            data["role"] = role.value
 
         try:
-            return await self._db.user.update(
-                where={"id": user_id},
-                data=cast(Any, data),
+            return cast(
+                User,
+                await self._db.user.update(
+                    where={"id": str(user_id)},
+                    data=cast(Any, data),
+                ),
             )
-        except UniqueViolationError as exc:
-            raise ConflictError("Email already in use") from exc
         except RecordNotFoundError as exc:
             raise NotFoundError(f"User {user_id} not found") from exc
+        except UniqueViolationError as exc:
+            raise ConflictError("Email already in use") from exc
 
-    async def soft_delete(self, user_id: int) -> None:
-        existing = await self.get_by_id(user_id)
-        if existing is None:
-            raise NotFoundError(f"User {user_id} not found")
-
+    async def soft_delete(self, user_id: UUID) -> None:
         try:
             await self._db.user.update(
-                where={"id": user_id},
+                where={"id": str(user_id)},
                 data=cast(Any, {"deletedAt": datetime.now(UTC)}),
             )
         except RecordNotFoundError as exc:

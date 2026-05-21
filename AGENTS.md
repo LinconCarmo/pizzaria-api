@@ -46,7 +46,7 @@ Tudo via `poe` (poethepoet). Definições canônicas em `[tool.poe.tasks]` de [`
 
 ### Non-negotiable (resumo)
 
-- **Estrutura de módulo** (`src/modules/<feature>/`): `__init__.py`, `router.py`, `controller.py`, `service.py`, `repository.py`, `schema.py`, `dependencies.py`. Arquivos curtos, **sem prefixo do módulo** (`controller.py`, não `users.controller.py`).
+- **Estrutura de módulo** (`src/modules/<feature>/`): `__init__.py`, `router.py`, `controllers/v1/<feature>.py`, `service.py`, `repository.py`, `schema.py`, `dependencies.py`. O `router.py` agrega `controllers/v1/` (e futuras `v2/`, `v3/`). Arquivos curtos, **sem prefixo do módulo** na raiz (`service.py`, não `users.service.py`). Dentro de `controllers/v1/`, o arquivo segue o recurso (`users.py`, `orders.py`).
 - **Camadas**:
   - **Controller** — recebe/retorna Pydantic, chama service. Sem regra de negócio. Sem `try/except`.
   - **Service** — regra, orquestração, transações. Lança `DomainError`. **Não importa Prisma**.
@@ -68,6 +68,11 @@ Guias passo-a-passo para tarefas comuns. **Conteúdo é prosa + templates portá
 | `pydantic-schema` | [`.claude/skills/pydantic-schema/SKILL.md`](.claude/skills/pydantic-schema/SKILL.md) | Criar/refatorar DTOs Request/Response Pydantic v2 |
 | `pytest-unit` | [`.claude/skills/pytest-unit/SKILL.md`](.claude/skills/pytest-unit/SKILL.md) | Testes unitários (sem DB) com mocks tipados |
 | `pytest-integration` | [`.claude/skills/pytest-integration/SKILL.md`](.claude/skills/pytest-integration/SKILL.md) | Testes de integração (Prisma + MySQL real via docker) |
+| `logger-level-choice` | [`.claude/skills/logger-level-choice/SKILL.md`](.claude/skills/logger-level-choice/SKILL.md) | Escolher nível (DEBUG/INFO/WARNING/ERROR/CRITICAL) ao adicionar um log |
+| `logger-message-structure` | [`.claude/skills/logger-message-structure/SKILL.md`](.claude/skills/logger-message-structure/SKILL.md) | Escrever a mensagem: `event_name` em inglês, `bind(...)`, `exception()`, sem PII |
+| `logger-config-performance` | [`.claude/skills/logger-config-performance/SKILL.md`](.claude/skills/logger-config-performance/SKILL.md) | Configurar `LOG_LEVEL`, sinks, lazy eval e rate limit em hot paths |
+| `pizzaria-reviewer` | [`.claude/skills/pizzaria-reviewer/SKILL.md`](.claude/skills/pizzaria-reviewer/SKILL.md) | Code review contra os padrões arquiteturais — use antes de PR ou para auditar módulo existente |
+| `fastapi-architect` | [`.claude/skills/fastapi-architect/SKILL.md`](.claude/skills/fastapi-architect/SKILL.md) | Planejar feature antes de implementar — transforma requisitos em plano técnico detalhado |
 
 ## Convenções de teste
 
@@ -81,6 +86,5 @@ Guias passo-a-passo para tarefas comuns. **Conteúdo é prosa + templates portá
 
 Os arquivos abaixo só fazem sentido dentro do Claude Code (usam frontmatter proprietário `tools`/`model`/`color`). Outros agents podem ignorá-los.
 
-- [`.claude/agents/fastapi-architect.md`](.claude/agents/fastapi-architect.md) — sub-agent de planejamento (read-only) que transforma requisitos em planos técnicos.
-- [`.claude/agents/pizzaria-reviewer.md`](.claude/agents/pizzaria-reviewer.md) — sub-agent de code review contra estes padrões.
+- [`.claude/agents/fastapi-architect.md`](.claude/agents/fastapi-architect.md) — sub-agent de planejamento exclusivo para Claude Code. Para uso em outros providers, prefer a skill vendor-neutra [`.claude/skills/fastapi-architect/SKILL.md`](.claude/skills/fastapi-architect/SKILL.md).
 - `CLAUDE.md` — wrapper de 1 linha que importa este arquivo (`@AGENTS.md`). Existe porque Claude Code não lê `AGENTS.md` nativamente.

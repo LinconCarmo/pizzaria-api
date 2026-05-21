@@ -1,22 +1,40 @@
 import os
+import subprocess
 from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from prisma import Prisma
+from testcontainers.mysql import MySqlContainer
 
-pytestmark = pytest.mark.integration
+
+@pytest.fixture(scope="session")
+def mysql_container() -> MySqlContainer:
+    with MySqlContainer("mysql:8.0") as mysql:
+        yield mysql
 
 
 @pytest_asyncio.fixture(scope="session")
-async def db() -> AsyncGenerator[Prisma]:
-    test_db_url = os.environ.get("DATABASE_URL_TEST") or os.environ.get("DATABASE_URL")
-    if test_db_url is None:
-        pytest.skip("DATABASE_URL/DATABASE_URL_TEST not set — skipping integration tests")
-    os.environ["DATABASE_URL"] = test_db_url
+async def db(mysql_container: MySqlContainer) -> AsyncGenerator[Prisma]:
+    raw_url = mysql_container.get_connection_url()
+    db_url = raw_url.replace("mysql+pymysql://", "mysql://")
+    os.environ["DATABASE_URL"] = db_url
 
-    client = Prisma()
+    subprocess.run(
+        [
+            "uv",
+            "run",
+            "prisma",
+            "migrate",
+            "deploy",
+            "--schema=src/infra/prisma/schema.prisma",
+        ],
+        check=True,
+        env={**os.environ, "DATABASE_URL": db_url},
+    )
+
+    client = Prisma(datasource={"url": db_url}, use_dotenv=False)
     await client.connect()
     try:
         yield client
@@ -26,12 +44,11 @@ async def db() -> AsyncGenerator[Prisma]:
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database(db: Prisma) -> AsyncGenerator[None]:
-    await db.user.delete_many()
     yield
     await db.user.delete_many()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session")
 async def client(db: Prisma) -> AsyncGenerator[AsyncClient]:
     from src.infra.database import get_db
     from src.main import app

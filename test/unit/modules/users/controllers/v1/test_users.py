@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
@@ -8,6 +9,10 @@ from src.modules.users.dependencies import get_user_service
 from src.modules.users.schema import PaginationMeta, UserListResponse
 from src.modules.users.service import UserService
 from test.factories import make_user_response
+
+USER_ID = UUID("00000000-0000-4000-8000-000000000001")
+OTHER_USER_ID = UUID("00000000-0000-4000-8000-000000000042")
+NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
 
 
 def _override_service(mock: AsyncMock) -> None:
@@ -22,10 +27,11 @@ def test_post_users_returns_201_with_user_response():
     service = AsyncMock(spec=UserService)
     service.create.return_value = make_user_response()
     _override_service(service)
+
     try:
         client = TestClient(app)
         response = client.post(
-            "/users",
+            "/api/v1/users",
             json={
                 "email": "ana@example.com",
                 "name": "Ana",
@@ -35,7 +41,7 @@ def test_post_users_returns_201_with_user_response():
 
         assert response.status_code == 201
         body = response.json()
-        assert body["id"] == 1
+        assert body["id"] == str(USER_ID)
         assert body["email"] == "ana@example.com"
         assert "password" not in body
     finally:
@@ -46,10 +52,11 @@ def test_post_users_returns_409_when_service_raises_conflict():
     service = AsyncMock(spec=UserService)
     service.create.side_effect = ConflictError("duplicate")
     _override_service(service)
+
     try:
         client = TestClient(app)
         response = client.post(
-            "/users",
+            "/api/v1/users",
             json={
                 "email": "ana@example.com",
                 "name": "Ana",
@@ -66,10 +73,11 @@ def test_post_users_returns_409_when_service_raises_conflict():
 def test_post_users_returns_422_when_email_invalid():
     service = AsyncMock(spec=UserService)
     _override_service(service)
+
     try:
         client = TestClient(app)
         response = client.post(
-            "/users",
+            "/api/v1/users",
             json={"email": "not-email", "name": "A", "password": "strongpass123"},
         )
 
@@ -81,14 +89,15 @@ def test_post_users_returns_422_when_email_invalid():
 
 def test_get_user_returns_200_with_response():
     service = AsyncMock(spec=UserService)
-    service.get_by_id.return_value = make_user_response(id=42, email="x@y.com")
+    service.get_by_id.return_value = make_user_response(id=OTHER_USER_ID, email="x@y.com")
     _override_service(service)
+
     try:
         client = TestClient(app)
-        response = client.get("/users/42")
+        response = client.get(f"/api/v1/users/{OTHER_USER_ID}")
 
         assert response.status_code == 200
-        assert response.json()["id"] == 42
+        assert response.json()["id"] == str(OTHER_USER_ID)
     finally:
         _clear_overrides()
 
@@ -97,9 +106,10 @@ def test_get_user_returns_404_when_service_raises_not_found():
     service = AsyncMock(spec=UserService)
     service.get_by_id.side_effect = NotFoundError("missing")
     _override_service(service)
+
     try:
         client = TestClient(app)
-        response = client.get("/users/999")
+        response = client.get(f"/api/v1/users/{NON_EXISTENT_ID}")
 
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "NOT_FOUND"
@@ -114,9 +124,10 @@ def test_list_users_returns_200_with_pagination_meta():
         meta=PaginationMeta(page=1, page_size=20, total=1, total_pages=1),
     )
     _override_service(service)
+
     try:
         client = TestClient(app)
-        response = client.get("/users?page=1&page_size=20")
+        response = client.get("/api/v1/users?page=1&page_size=20")
 
         assert response.status_code == 200
         body = response.json()
@@ -130,9 +141,10 @@ def test_patch_user_returns_200():
     service = AsyncMock(spec=UserService)
     service.update.return_value = make_user_response()
     _override_service(service)
+
     try:
         client = TestClient(app)
-        response = client.patch("/users/1", json={"name": "Ana Maria"})
+        response = client.patch(f"/api/v1/users/{USER_ID}", json={"name": "Ana Maria"})
 
         assert response.status_code == 200
     finally:
@@ -143,9 +155,10 @@ def test_delete_user_returns_204_with_empty_body():
     service = AsyncMock(spec=UserService)
     service.delete.return_value = None
     _override_service(service)
+
     try:
         client = TestClient(app)
-        response = client.delete("/users/1")
+        response = client.delete(f"/api/v1/users/{USER_ID}")
 
         assert response.status_code == 204
         assert response.content == b""
@@ -157,9 +170,10 @@ def test_delete_user_returns_404_when_not_found():
     service = AsyncMock(spec=UserService)
     service.delete.side_effect = NotFoundError("missing")
     _override_service(service)
+
     try:
         client = TestClient(app)
-        response = client.delete("/users/999")
+        response = client.delete(f"/api/v1/users/{NON_EXISTENT_ID}")
 
         assert response.status_code == 404
     finally:

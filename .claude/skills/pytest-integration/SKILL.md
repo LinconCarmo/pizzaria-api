@@ -1,13 +1,15 @@
 ---
 name: pytest-integration
-description: Cria testes de integração usando httpx.AsyncClient + Prisma real (MySQL via docker-compose), exercitando o pipeline HTTP completo do FastAPI no pizzaria-api. Use quando o teste precisa do banco de verdade — constraints, transactions, generated columns, migrations — ou quando o usuário pedir "criar testes de integração", "e2e tests", "testar endpoint X end-to-end".
+description: Cria testes de integração usando httpx.AsyncClient + Prisma real (MySQL via Testcontainers), exercitando o pipeline HTTP completo do FastAPI no pizzaria-api. Use quando o teste precisa do banco de verdade — constraints, transactions, generated columns, migrations — ou quando o usuário pedir "criar testes de integração", "e2e tests", "testar endpoint X end-to-end".
 ---
 
 # Pytest Integration Test Skill
 
 Use esta skill para testes que exercitam o pipeline HTTP completo (FastAPI + Pydantic + Service + Repository + Prisma + MySQL real). Para testes que só validam lógica de Service/Repository com mocks, use `pytest-unit`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção 9 — Testes). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção 10 — Testes). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+
+O MySQL é levantado automaticamente via **Testcontainers** (`MySqlContainer`) — sem `docker compose up` manual, sem variável `DATABASE_URL_TEST`. O container sobe por sessão de teste e é destruído ao final. Basta ter o Docker em execução.
 
 ## Quando usar
 
@@ -28,9 +30,9 @@ Use esta skill para testes que exercitam o pipeline HTTP completo (FastAPI + Pyd
 
 1. **Dependências instaladas**:
    ```bash
-   uv add --dev pytest-asyncio httpx
+   uv add --dev pytest-asyncio httpx "testcontainers[mysql]"
    ```
-   `httpx` é necessário para `AsyncClient`. `pytest-asyncio` para suporte async.
+   `httpx` para `AsyncClient`; `pytest-asyncio` para suporte async; `testcontainers[mysql]` sobe o MySQL efêmero.
 
 2. **`pytest.ini`** (ou bloco `[tool.pytest.ini_options]` no `pyproject.toml`):
    ```ini
@@ -41,18 +43,12 @@ Use esta skill para testes que exercitam o pipeline HTTP completo (FastAPI + Pyd
        integration: tests que precisam de MySQL real (rodar com `pytest -m integration`)
    ```
 
-3. **Infra subida**:
+3. **Docker em execução**: Testcontainers gerencia o container automaticamente — nenhum `docker compose up` manual é necessário. Verificar que o Docker Desktop (ou daemon) está rodando:
    ```bash
-   docker compose up -d mysql
-   uv run prisma migrate dev --schema=src/infra/prisma/schema.prisma
-   uv run prisma generate --schema=src/infra/prisma/schema.prisma
+   docker info
    ```
 
-4. **Banco de teste isolado**: integration tests **não devem** rodar contra o MySQL de desenvolvimento. Duas opções:
-   - **Recomendado**: variável `DATABASE_URL_TEST` apontando para outro schema (`pizzaria_test`). Override via fixture.
-   - Alternativa: rodar `prisma migrate reset` antes da suíte (destrói dados — não usar contra dev).
-
-   Se o `.env.example` ainda não tem `DATABASE_URL_TEST`, adicionar antes de criar testes que escrevem.
+4. **Banco totalmente isolado**: Testcontainers cria um container MySQL descartável por sessão de teste. Não há risco de afetar o banco de desenvolvimento — nenhuma variável `DATABASE_URL_TEST` é necessária. A URL é gerada dinamicamente pela fixture `mysql_container`.
 
 5. **Diretório**: `test/integration/` deve existir e espelhar `src/`. Criar se não existir.
 
@@ -74,31 +70,60 @@ Use esta skill para testes que exercitam o pipeline HTTP completo (FastAPI + Pyd
 Criar `test/integration/conftest.py`:
 
 ```python
+import os
+import subprocess
 from collections.abc import AsyncIterator
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from prisma import Prisma
-
-from src.main import app
+from testcontainers.mysql import MySqlContainer
 
 
 @pytest.fixture(scope="session")
-async def db() -> AsyncIterator[Prisma]:
+def mysql_container() -> MySqlContainer:
+    with MySqlContainer("mysql:8.0") as mysql:
+        yield mysql
+
+
+@pytest_asyncio.fixture(scope="session")
+async def db(mysql_container: MySqlContainer) -> AsyncIterator[Prisma]:
+    # Expõe a URL para o Prisma (scheme mysql://, sem driver prefix)
+    raw_url = mysql_container.get_connection_url()
+    os.environ["DATABASE_URL"] = raw_url.replace("mysql+pymysql://", "mysql://")
+
+    # Aplica migrations no banco efêmero
+    subprocess.run(
+        ["uv", "run", "prisma", "migrate", "deploy",
+         "--schema=src/infra/prisma/schema.prisma"],
+        check=True,
+    )
+
     client = Prisma()
     await client.connect()
-    yield client
-    await client.disconnect()
+    try:
+        yield client
+    finally:
+        await client.disconnect()
 
 
-@pytest.fixture(scope="session")
-async def client() -> AsyncIterator[AsyncClient]:
+@pytest_asyncio.fixture(scope="session")
+async def client(db: Prisma) -> AsyncIterator[AsyncClient]:
+    from src.infra.database import get_db
+    from src.main import app
+
+    def _override_db() -> Prisma:
+        return db
+
+    app.dependency_overrides[get_db] = _override_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+    app.dependency_overrides.clear()
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def clean_database(db: Prisma) -> AsyncIterator[None]:
     yield
     # cleanup determinístico — apaga em ordem reversa de FK
@@ -111,6 +136,8 @@ async def clean_database(db: Prisma) -> AsyncIterator[None]:
 > Adicione `delete_many()` para cada tabela conforme o `schema.prisma` evolui. Mantenha a **ordem reversa de FK** para não violar constraints.
 
 > Para suítes grandes, considerar truncar via SQL raw (`db.execute_raw("TRUNCATE ...")`) — mais rápido que `delete_many`.
+
+> `mysql_container` é fixture **síncrona** com `scope="session"` (Testcontainers não é async). A fixture `db` é `pytest_asyncio.fixture` e depende dela — pytest resolve a cadeia corretamente.
 
 ## Estrutura de um teste
 
@@ -134,7 +161,7 @@ from test.factories.users import seed_user
 from test.factories.users import make_create_user_request
 ```
 
-Assinatura padrão da factory de seed: `async def seed_<entity>(db: Prisma, *, <defaults>, **overrides) -> <PrismaModel>`. Ver §9 do `modular-monolith.md` para a regra geral.
+Assinatura padrão da factory de seed: `async def seed_<entity>(db: Prisma, *, <defaults>, **overrides) -> <PrismaModel>`. Ver §10 do `modular-monolith.md` para a regra geral.
 
 ### 3. Testes — AAA com banco real
 
@@ -206,25 +233,28 @@ Builders de **dados** (seed no DB, payloads para HTTP) **sempre** ficam em `test
 
 ## Performance
 
-Integration tests são **lentos por design** (banco real). Mitigações:
+Integration tests são **lentos por design** (banco real + overhead de container). Mitigações:
 
-- **Não use** integration test quando unit test serve. Regra: se você está mockando 80% do colaboradores, isso era pra ser unit.
+- **Não use** integration test quando unit test serve. Regra: se você está mockando 80% dos colaboradores, isso era pra ser unit.
+- **Testcontainers sobe uma vez por sessão** (`scope="session"`) — o overhead de startup do container (~3–5 s) é pago uma única vez, não por teste.
 - **Reutilize `db` e `client` em escopo session** (já está no conftest).
 - **`TRUNCATE` em vez de `delete_many` em loop** para suítes grandes (centenas de testes).
-- **Paralelização** com `pytest-xdist` exige bancos isolados por worker (`pizzaria_test_gw0`, `pizzaria_test_gw1`) — só configurar quando a suíte estiver pesada.
+- **Paralelização** com `pytest-xdist` exige containers isolados por worker — cada worker deve ter sua própria fixture `mysql_container` (scope `"function"` ou `"module"` com `xdist`); só configurar quando a suíte estiver pesada.
 
 ## Gates antes de entregar
 
 1. **Ruff**: `uv run ruff check test/integration/` → 0 erros.
-2. **Banco subido**: `docker ps | grep mysql` mostra container saudável.
-3. **Migrations aplicadas**: `uv run prisma migrate status --schema=src/infra/prisma/schema.prisma` limpo.
-4. **Testes verdes**: `uv run pytest test/integration -v -m integration` → todos passam.
-5. **Sem flakiness**: rodar 3x seguidas — se 1 falha intermitente, **bloqueia entrega**.
+2. **Docker em execução**: `docker info` sem erro — Testcontainers precisa do daemon.
+3. **Testes verdes**: `uv run pytest test/integration -v -m integration` → todos passam (Testcontainers sobe e migra o banco automaticamente).
+4. **Sem flakiness**: rodar 3× seguidas — se 1 falha intermitente, **bloqueia entrega**.
 
 ## Common pitfalls
 
 - **Vazamento de dados entre testes** — esquecer `clean_database` autouse ou ordem errada de `delete_many` (viola FK).
-- **Banco de dev sendo apagado** — testes rodando contra `DATABASE_URL` de desenvolvimento. Configurar `DATABASE_URL_TEST` separado e override no conftest.
+- **`DATABASE_URL` não sobrescrito antes do Prisma conectar** — a fixture `db` define `os.environ["DATABASE_URL"]` antes de `client.connect()`; se outro código leu a variável antes disso (ex: import no top-level), o override chega tarde. Sempre deixar imports de `src.*` dentro das fixtures ou em `src/main.py` carregado após a fixture session.
+- **Scheme errado para o Prisma** — `get_connection_url()` retorna `mysql+pymysql://...` (SQLAlchemy). Converter para `mysql://` antes de passar ao Prisma (feito no conftest acima).
+- **Docker não está rodando** — Testcontainers falha com `DockerException`. Verificar `docker info` antes de rodar a suíte.
+- **`mysql_container` como fixture async** — Testcontainers não suporta `async with`; a fixture deve ser **síncrona** (`@pytest.fixture`, não `@pytest_asyncio.fixture`). A fixture `db` (que é async) pode depender dela normalmente.
 - **`HTTPException` esperado em vez de payload `DomainError`** — handlers globais retornam `{"error": {"code": "...", "message": "...", "details": ...}}`. Asserções devem bater nesse shape.
 - **`pytest.mark.asyncio` faltando** quando `asyncio_mode = auto` não está configurado — teste é coletado mas não roda como coroutine (pytest avisa).
 - **`time.sleep`** para esperar "consistência" do banco — Prisma é síncrono na transação; se você precisa esperar, está testando algo errado.
@@ -237,10 +267,12 @@ Integration tests são **lentos por design** (banco real). Mitigações:
 
 - [ ] Arquivo em `test/integration/<mirror>/test_<basename>.py`.
 - [ ] `pytestmark = pytest.mark.integration` no topo (ou marker individual).
-- [ ] `test/integration/conftest.py` existe com fixtures `db`, `client`, `clean_database`.
+- [ ] `test/integration/conftest.py` existe com fixtures `mysql_container`, `db`, `client`, `clean_database`.
+- [ ] `mysql_container` é fixture **síncrona** (`@pytest.fixture`) e `db`/`client`/`clean_database` são `@pytest_asyncio.fixture`.
+- [ ] `os.environ["DATABASE_URL"]` é definido dentro da fixture `db` **antes** de `client.connect()`.
 - [ ] Seeds usam `seed_<entity>` de `test/factories/<feature>.py`; payloads HTTP usam `make_create_<entity>_request(...).model_dump(mode="json")`. Sem `_seed_*` locais nem dicts crus duplicando defaults.
-- [ ] `DATABASE_URL_TEST` (ou equivalente) aponta para banco separado do dev.
 - [ ] Para cada endpoint: ≥ 1 happy path + ≥ 1 erro de domínio (404/409/422).
 - [ ] Asserts em HTTP **e** no DB (estado persistido).
 - [ ] Sem `time.sleep`, sem retry, sem ordem implícita.
+- [ ] `docker info` sem erro (Docker em execução).
 - [ ] `pytest test/integration -v -m integration` verde 3× em sequência.

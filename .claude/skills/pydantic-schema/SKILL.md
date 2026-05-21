@@ -95,6 +95,25 @@ class _BaseSchema(BaseModel):
 
 Requests **não** precisam de `from_attributes`. Mantenha-os com `BaseModel` puro.
 
+### 5. OpenAPI: `examples` por campo (não só no modelo)
+
+Cada campo em `*Request` e `*Response` deve ter `Field(..., description=..., examples=[...])` quando fizer sentido documentar o campo no Swagger.
+
+- `json_schema_extra` no `model_config` gera **um** exemplo de corpo inteiro — útil como complemento, **não** substitui `examples=` em cada `Field`.
+- Preferir `examples=` por campo para que `/docs` mostre exemplos interativos campo a campo.
+
+```python
+# ✅ CORRETO — exemplos por campo
+email: EmailStr = Field(
+    ..., description="User email address", examples=["ana@example.com"]
+)
+
+# ⚠️ Insuficiente sozinho — só exemplo de corpo
+model_config = ConfigDict(
+    json_schema_extra={"examples": [{"email": "ana@example.com", "name": "Ana"}]},
+)
+```
+
 ## Templates
 
 ### Request — criação
@@ -281,14 +300,19 @@ Usar `str, Enum` (não `Enum` puro) para serialização limpa.
 ## Nested models
 
 ```python
+from uuid import UUID
+
+
 class CreateOrderItemRequest(BaseModel):
-    product_id: int = Field(..., gt=0)
+    product_id: UUID = Field(..., examples=["7c9e6679-7425-40de-944b-e07fc1f90ae7"])
     quantity: int = Field(..., ge=1, le=99)
 
 
 class CreateOrderRequest(BaseModel):
     items: list[CreateOrderItemRequest] = Field(..., min_length=1)
 ```
+
+> **IDs (PKs e FKs) são `uuid.UUID`** — ver [ADR 0003](../../../docs/adr/0003-ids-uuid.md). Pydantic valida formato automaticamente; o Swagger expõe como `string($uuid)`.
 
 Pydantic v2 resolve forward references — se houver ciclo, usar string (`"CreateOrderItemRequest"`) e chamar `model_rebuild()` no final do módulo.
 
@@ -329,7 +353,8 @@ async def get(self, id: int) -> OrderResponse:
 - **Mesmo modelo para Request e Response** — quebra encapsulamento, vaza `id`/`created_at` para criação, força campos opcionais que deveriam ser obrigatórios.
 - **`Optional[X]` em vez de `X | None`** — projeto usa Python 3.13, sintaxe moderna `X | None` é preferida.
 - **`float` para dinheiro** — usar `Decimal`.
-- **Sem `examples`/`description`** — `/docs` fica pobre e sem exemplos para integradores.
+- **Sem `examples`/`description` em `Field`** — `/docs` fica pobre; `json_schema_extra` sozinho não documenta campo a campo.
+- **Só `json_schema_extra` sem `examples=` por campo** — integradores veem um corpo de exemplo, mas não exemplos por propriedade no schema.
 - **`alias` sem `populate_by_name=True`** — Pydantic aceita só o alias, perde compatibilidade com nome snake_case.
 - **Validator lança `HTTPException`** — lançar `ValueError`; Pydantic transforma em `RequestValidationError`, handler global converte para 422.
 - **Expor `password_hash` em Response** — risco de segurança. Sempre mapear campos explícitos.
@@ -340,7 +365,7 @@ async def get(self, id: int) -> OrderResponse:
 
 - [ ] Request e Response separados, com nomes seguindo a convenção (`Create<R>Request`, `<R>Response`).
 - [ ] Response herda de `_BaseSchema` (ou equivalente com `from_attributes=True`).
-- [ ] Todo `Field` tem `description` e (quando faz sentido) `examples`.
+- [ ] Todo `Field` tem `description` e (quando faz sentido) `examples` — não depender só de `json_schema_extra` no `model_config`.
 - [ ] Money é `Decimal`, IDs auto-increment são `int` com `gt=0`.
 - [ ] Validators usam `ValueError`, nunca `HTTPException`.
 - [ ] Nenhum campo sensível (`password_hash`, tokens internos) no Response.

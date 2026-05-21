@@ -1,4 +1,6 @@
-from typing import Any
+from uuid import UUID
+
+from prisma.models import User
 
 from src.core.exceptions import NotFoundError
 from src.core.security import hash_password
@@ -26,7 +28,7 @@ class UserService:
         )
         return self._to_response(raw)
 
-    async def get_by_id(self, user_id: int) -> UserResponse:
+    async def get_by_id(self, user_id: UUID) -> UserResponse:
         raw = await self._repository.get_by_id(user_id)
         if raw is None:
             raise NotFoundError(f"User {user_id} not found")
@@ -54,22 +56,28 @@ class UserService:
             ),
         )
 
-    async def update(self, user_id: int, data: UpdateUserRequest) -> UserResponse:
-        payload = data.model_dump(exclude_unset=True)
-        if "password" in payload:
-            payload["hashedPassword"] = hash_password(payload.pop("password"))
-        if "role" in payload and payload["role"] is not None:
-            payload["role"] = payload["role"].value
+    async def update(self, user_id: UUID, data: UpdateUserRequest) -> UserResponse:
+        existing = await self._repository.get_by_id(user_id)
+        if existing is None:
+            raise NotFoundError(f"User {user_id} not found")
 
-        raw = await self._repository.update(user_id, payload)
+        updates = data.model_dump(exclude_unset=True)
+        if "password" in updates:
+            updates["hashed_password"] = hash_password(updates.pop("password"))
+
+        raw = await self._repository.update(user_id, **updates)
         return self._to_response(raw)
 
-    async def delete(self, user_id: int) -> None:
+    async def delete(self, user_id: UUID) -> None:
+        existing = await self._repository.get_by_id(user_id)
+        if existing is None:
+            raise NotFoundError(f"User {user_id} not found")
+
         await self._repository.soft_delete(user_id)
 
-    def _to_response(self, raw: Any) -> UserResponse:
+    def _to_response(self, raw: User) -> UserResponse:
         return UserResponse(
-            id=raw.id,
+            id=UUID(raw.id),
             email=raw.email,
             name=raw.name,
             role=UserRole(raw.role),

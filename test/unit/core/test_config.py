@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from src.core.config import Settings
 
@@ -54,7 +55,7 @@ def test_settings_rejects_invalid_app_env(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", "secret")
     monkeypatch.setenv("APP_ENV", "staging")
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         Settings()
 
 

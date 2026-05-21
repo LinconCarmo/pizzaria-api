@@ -25,12 +25,14 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.12",
+    "testcontainers[mysql]",
 ]
 
 [tool.poe.tasks]
 prisma-generate    = { cmd = "prisma generate --schema=src/infra/prisma/schema.prisma",                       help = "Generate Prisma client" }
 prisma-migrate-dev = { cmd = "prisma migrate dev --schema=src/infra/prisma/schema.prisma",                    help = "Apply dev migration (writes new migration if needed)" }
 prisma-deploy      = { cmd = "prisma migrate deploy --schema=src/infra/prisma/schema.prisma",                 help = "Apply pending migrations (no schema changes)" }
+prisma-reset       = { cmd = "prisma migrate reset --schema=src/infra/prisma/schema.prisma",                  help = "Reset database (drop, recreate, re-apply all migrations)" }
 lint               = { cmd = "ruff check src test",                                                           help = "ruff check" }
 format             = { cmd = "ruff format src test",                                                          help = "ruff format (apply)" }
 format-check       = { cmd = "ruff format --check src test",                                                  help = "ruff format --check" }
@@ -107,8 +109,10 @@ disallow_untyped_defs = false
 pythonpath = ["."]
 testpaths = ["test"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 markers = [
-    "integration: integration tests that require external services (MySQL via docker compose)",
+    "integration: integration tests — MySQL efêmero via Testcontainers (requer Docker em execução)",
 ]
 addopts = "-ra"
 

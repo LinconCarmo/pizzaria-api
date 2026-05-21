@@ -1,5 +1,8 @@
+from typing import cast
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from starlette.types import ExceptionHandler
 
 from src.core.exceptions import (
     DomainError,
@@ -18,12 +21,12 @@ app.add_middleware(LoggingMiddleware)
 
 app.add_exception_handler(
     DomainError,
-    domain_error_handler,
+    cast(ExceptionHandler, domain_error_handler),
 )
 
 app.add_exception_handler(
     RequestValidationError,
-    validation_exception_handler,
+    cast(ExceptionHandler, validation_exception_handler),
 )
 
 app.add_exception_handler(
@@ -32,9 +35,4 @@ app.add_exception_handler(
 )
 
 app.include_router(health_router)
-app.include_router(users_router)
-
-
-@app.get("/")
-def root() -> dict[str, str]:
-    return {"message": "Pizzaria API"}
+app.include_router(users_router, prefix="/api/v1")
