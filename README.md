@@ -131,3 +131,61 @@ __init__.py | router.py | controller.py | service.py | repository.py | schema.py
 - [`AGENTS.md`](AGENTS.md) — convenções para coding agents (vendor-neutro, padrão [agents.md](https://agents.md/)).
 - [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md) — guideline arquitetural completo.
 - [`docs/adr/`](docs/adr/) — decisões arquiteturais (ADRs).
+
+
+
+##Authentication Structure
+
+This project implements a Role-Based Access Control (RBAC) structure using Prisma ORM and MySQL.
+
+### Implemented Models
+
+#### User
+Stores authentication credentials and profile information.
+
+- Unique field: `email`
+
+#### Role
+Defines user roles within the system.
+
+- Unique field: `name`
+
+#### Permission
+Defines granular system permissions.
+
+- Unique field: `code`
+
+---
+
+### Relationships
+
+- A `User` belongs to one `Role`
+- A `Role` can have multiple `Permissions`
+- A `Permission` can belong to multiple `Roles`
+
+---
+
+### Database Features
+
+- Prisma ORM integration
+- MySQL database support
+- Prisma migrations
+- Automatic timestamps:
+  - `created_at`
+  - `updated_at`
+
+---
+
+### Migration
+
+```bash
+prisma migrate dev --name add_auth_models
+```
+
+---
+
+### Prisma Client
+
+```bash
+prisma generate
+```

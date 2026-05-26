@@ -33,13 +33,31 @@ async def db(mysql_container: MySqlContainer) -> AsyncGenerator[Prisma]:
         check=True,
         env={**os.environ, "DATABASE_URL": db_url},
     )
-
     client = Prisma(datasource={"url": db_url}, use_dotenv=False)
     await client.connect()
     try:
         yield client
     finally:
         await client.disconnect()
+
+
+ROLES = [
+    ("CUSTOMER", "Cliente"),
+    ("STAFF", "Funcionário"),
+    ("ADMIN", "Administrador"),
+]
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def seed_roles(db: Prisma) -> None:
+    for name, description in ROLES:
+        await db.role.upsert(
+            where={"name": name},
+            data={
+                "create": {"name": name, "description": description},
+                "update": {},
+            },
+        )
 
 
 @pytest_asyncio.fixture(autouse=True)

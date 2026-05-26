@@ -65,9 +65,10 @@ class UserRepository:
                         "email": email,
                         "name": name,
                         "hashedPassword": hashed_password,
-                        "role": role.value,
+                        "role": {"connect": {"name": role.value}},
                     },
                 ),
+                include=cast(Any, {"role": True}),
             )
         except UniqueViolationError as exc:
             raise ConflictError(f"User with email {email} already exists") from exc
@@ -75,11 +76,13 @@ class UserRepository:
     async def get_by_id(self, user_id: UUID) -> User | None:
         return await self._db.user.find_first(
             where=cast(Any, {"id": str(user_id), "deletedAt": None}),
+            include=cast(Any, {"role": True}),
         )
 
     async def get_by_email(self, email: str) -> User | None:
         return await self._db.user.find_first(
             where=cast(Any, {"email": email, "deletedAt": None}),
+            include=cast(Any, {"role": True}),
         )
 
     async def list_paginated(
@@ -91,7 +94,7 @@ class UserRepository:
     ) -> tuple[list[User], int]:
         where: dict[str, Any] = {"deletedAt": None}
         if role is not None:
-            where["role"] = role.value
+            where["role"] = {"name": role.value}
 
         skip = (page - 1) * page_size
         items = await self._db.user.find_many(
@@ -99,6 +102,7 @@ class UserRepository:
             skip=skip,
             take=page_size,
             order=cast(Any, {"createdAt": "asc"}),
+            include=cast(Any, {"role": True}),
         )
         total = await self._db.user.count(where=cast(Any, where))
         return items, total
@@ -120,7 +124,7 @@ class UserRepository:
         if hashed_password is not None:
             data["hashedPassword"] = hashed_password
         if role is not None:
-            data["role"] = role.value
+            data["role"] = {"connect": {"name": role.value}}
 
         try:
             return cast(
@@ -128,6 +132,7 @@ class UserRepository:
                 await self._db.user.update(
                     where={"id": str(user_id)},
                     data=cast(Any, data),
+                    include=cast(Any, {"role": True}),
                 ),
             )
         except RecordNotFoundError as exc:
