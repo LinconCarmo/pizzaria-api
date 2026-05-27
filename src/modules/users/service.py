@@ -80,7 +80,7 @@ class UserService:
             id=UUID(raw.id),
             email=raw.email,
             name=raw.name,
-            role=UserRole(raw.role.name),
+            role=UserRole(raw.role.name) if raw.role is not None else UserRole.CUSTOMER,
             created_at=raw.createdAt,
             updated_at=raw.updatedAt,
         )

@@ -86,7 +86,7 @@ async def seed_user(
         "email": email,
         "name": name,
         "hashedPassword": hashed_password,
-        "role": role,
+        "role": {"connect": {"name": role}},
         **overrides,
     }
     return await db.user.create(data=cast(Any, data))
