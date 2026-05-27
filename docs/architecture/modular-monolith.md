@@ -127,7 +127,7 @@ Direção de dependência: **controller → service → repository**. Schema é 
 - **Request e Response sempre separados.** Nunca o mesmo modelo.
 - Naming: `Create<R>Request`, `Update<R>Request`, `<R>Response`, `<R>SummaryResponse`, `<R>FilterRequest`.
 - Response herda de `_BaseSchema` (ou `shared.types.BaseSchema`) com `from_attributes=True`.
-- Money é `**Decimal`**, nunca `float`. IDs (PKs e FKs) são `uuid.UUID`, gerados pelo banco via Prisma `@default(uuid())` — Pydantic valida formato automaticamente e o Swagger expõe como `string($uuid)`.
+- Money é `**Decimal`\*\*, nunca `float`. IDs (PKs e FKs) são `uuid.UUID`, gerados pelo banco via Prisma `@default(uuid())` — Pydantic valida formato automaticamente e o Swagger expõe como `string($uuid)`.
 - Validators levantam `ValueError` (Pydantic converte para `RequestValidationError` → HTTP 422).
 - **Nunca expor** `password_hash`, tokens ou campos internos em `*Response`.
 
@@ -140,6 +140,7 @@ Direção de dependência: **controller → service → repository**. Schema é 
 ### Router (`router.py`)
 
 - `router.py` agrega os controllers versionados do módulo. Para uma única `v1`:
+
   ```python
   # router.py
   from fastapi import APIRouter
@@ -151,6 +152,7 @@ Direção de dependência: **controller → service → repository**. Schema é 
 
   __all__ = ["router"]
   ```
+
 - Cada controller em `controllers/v1/<feature>.py` declara `router = APIRouter(prefix="/<feature>", tags=[...])`. Para módulos com **múltiplos controllers** dentro da mesma versão (ex.: split por sub-recurso), cada um precisa declarar **prefix próprio não vazio**; o FastAPI 0.136+ rejeita `include_router` quando sub-router e handler têm path vazios simultaneamente.
 - Registrado em [src/main.py](../../src/main.py) com prefixo de versão: `app.include_router(<feature>_router, prefix="/api/v1")`. Exceção: `/health` é registrado **sem** `prefix=` (ver §3 — Versionamento de URL).
 
@@ -192,7 +194,6 @@ async def create_user(
 
 > O arquivo acima vive em `src/modules/users/controllers/v1/users.py`. O `prefix="/users"` é apenas do recurso — o `/api/v1` é aplicado em [src/main.py](../../src/main.py) na hora do `include_router`. URL final: `POST /api/v1/users`.
 
-
 | Elemento                            | Função                                                             | Obrigatório?              |
 | ----------------------------------- | ------------------------------------------------------------------ | ------------------------- |
 | `prefix="/users"` no router         | path-base do recurso                                               | Sim                       |
@@ -203,19 +204,23 @@ async def create_user(
 | `description=` ou docstring         | parágrafo de regra/efeito colateral                                | Quando há regra não óbvia |
 | `responses={...}`                   | declara payloads de erro além do 2xx default                       | Sim (ver tabela abaixo)   |
 
-
 #### Envelope de erro: `ErrorResponse`
 
 Os handlers globais (§6) serializam todo `DomainError` no envelope:
 
 ```json
-{"error": {"code": "NOT_FOUND", "message": "User 42 not found", "details": null}}
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "User 42 not found",
+    "details": null
+  }
+}
 ```
 
 Esse envelope é modelado em [src/core/exceptions.py](../../src/core/exceptions.py) como dois Pydantics — `ErrorDetail` (`code`/`message`/`details`) e `ErrorResponse` (wrapper com `error: ErrorDetail`). Importar `ErrorResponse` de `src.core.exceptions` e usá-lo como `model` em `responses={...}`. **Não** redefinir por módulo.
 
 #### `responses=` mínimo por verbo
-
 
 | Verbo                     | Status mínimos em `responses=`          |
 | ------------------------- | --------------------------------------- |
@@ -226,7 +231,6 @@ Esse envelope é modelado em [src/core/exceptions.py](../../src/core/exceptions.
 | `PUT /<r>/{id}`           | `404`; `409` quando aplicável           |
 | `DELETE /<r>/{id}`        | `404`                                   |
 | `POST /<r>/{id}/<action>` | `404`; `409` (conflito de estado)       |
-
 
 `422` é opcional — qualquer endpoint que recebe body já retorna 422 via `RequestValidationError` global. Declarar explicitamente apenas quando o consumidor precisa **ver** isso no `/docs`. Endpoints autenticados acrescentam `401` (e `403` quando há autorização granular).
 
@@ -286,7 +290,7 @@ Abrir `http://localhost:8000/docs` e validar para cada endpoint novo:
 ### 5.1. Localização e comandos
 
 - **Schema único** em [src/infra/prisma/schema.prisma](../../src/infra/prisma/schema.prisma).
-- **Migrations** em [src/infra/prisma/migrations/](../../src/infra/prisma/migrations/), geradas por `uv run poe prisma-migrate-dev`.
+- **Migrations** em [src/infra/prisma/migrations/](../../src/infra/prisma/migrations/), geradas por `uv run poe prisma-migrate-create`.
 - **Client gerado** via `uv run poe prisma-generate` (necessário após alterar `schema.prisma`).
 - Os comandos vivem em `[tool.poe.tasks]` no [pyproject.toml](../../pyproject.toml) e usam `--schema=src/infra/prisma/schema.prisma`.
 
@@ -369,17 +373,15 @@ class <Feature>Repository:
 - O **service** converte para `*Response` via `<Response>.model_validate(raw)`.
 - Isso evita acoplar a camada de I/O ao schema Pydantic e mantém o repository plugável.
 
-
-| Tipo no banco               | Tipo no dict retornado         | Tipo no DTO Pydantic             |
-| --------------------------- | ------------------------------ | -------------------------------- |
-| `String @db.Char(36)` (PK)  | `str`                          | `UUID` (`uuid.UUID`)             |
-| `Int`                       | `int`                          | `int`                            |
-| `String`                    | `str`                          | `str` ou `EmailStr`              |
-| `Decimal(10, 2)` | `Decimal`                      | `Decimal` (nunca `float`)        |
-| `DateTime`       | `datetime`                     | `datetime` (alias se snake_case) |
-| Relação          | `dict` aninhado (se `include`) | `<Sub>Response` aninhado         |
-| Enum             | `str` (valor do enum)          | `Enum` Python                    |
-
+| Tipo no banco              | Tipo no dict retornado         | Tipo no DTO Pydantic             |
+| -------------------------- | ------------------------------ | -------------------------------- |
+| `String @db.Char(36)` (PK) | `str`                          | `UUID` (`uuid.UUID`)             |
+| `Int`                      | `int`                          | `int`                            |
+| `String`                   | `str`                          | `str` ou `EmailStr`              |
+| `Decimal(10, 2)`           | `Decimal`                      | `Decimal` (nunca `float`)        |
+| `DateTime`                 | `datetime`                     | `datetime` (alias se snake_case) |
+| Relação                    | `dict` aninhado (se `include`) | `<Sub>Response` aninhado         |
+| Enum                       | `str` (valor do enum)          | `Enum` Python                    |
 
 > **Money sempre `Decimal`.** Prisma retorna `Decimal` nativamente se o campo for `@db.Decimal(...)`; perder isso para `float` trunca centavos.
 
@@ -397,7 +399,7 @@ async def find_with_items(self, order_id: UUID) -> dict | None:
 
 O dict resultante terá `items` (lista de dicts) e `customer` (dict). O service converte para `OrderResponse` com `OrderItemResponse` aninhado.
 
-**Evitar N+1**: se vai usar a relação, traga via `include`. Não chamar `find_`* em loop dentro do service.
+**Evitar N+1**: se vai usar a relação, traga via `include`. Não chamar `find_`\* em loop dentro do service.
 
 ### 5.7. Transações multi-write
 
@@ -430,14 +432,12 @@ async def create_order_with_items(
 
 O Prisma Python lança exceções específicas quando o banco rejeita uma operação. **Repository captura e traduz para `DomainError`** — service e controller nunca veem exceção do Prisma:
 
-
 | Exceção Prisma                                   | Significado                                       | Traduzir para                                            |
 | ------------------------------------------------ | ------------------------------------------------- | -------------------------------------------------------- |
 | `prisma.errors.RecordNotFoundError` (P2025)      | `update`/`delete` em registro inexistente         | `NotFoundError`                                          |
 | `prisma.errors.UniqueViolationError` (P2002)     | Constraint UNIQUE violada (email duplicado, etc.) | `ConflictError`                                          |
 | `prisma.errors.ForeignKeyViolationError` (P2003) | FK aponta para registro inexistente               | `ConflictError` ou `NotFoundError` (depende do contexto) |
 | `prisma.errors.PrismaError` (genérica)           | Outras falhas do client                           | Deixar propagar — handler global retorna 500             |
-
 
 Exemplo:
 
@@ -467,9 +467,9 @@ class UserRepository:
 ### 5.9. Convenções de schema.prisma
 
 - **PKs são UUID**: `id String @id @default(uuid()) @db.Char(36)`. Nunca `Int @id @default(autoincrement())`. Ver [ADR 0003 — IDs UUID](../adr/0003-ids-uuid.md).
-- `**@map`/`@@map`** para nomes em snake_case no banco mesmo com camelCase no client (`createdAt` no Prisma → `created_at` no MySQL).
-- `**@@index`** em colunas usadas em filtros frequentes.
-- `**@@unique`** para chaves de negócio (ex: `email` do usuário).
+- `**@map`/`@@map`\*\* para nomes em snake_case no banco mesmo com camelCase no client (`createdAt` no Prisma → `created_at` no MySQL).
+- `**@@index`\*\* em colunas usadas em filtros frequentes.
+- `**@@unique`\*\* para chaves de negócio (ex: `email` do usuário).
 - **FKs explícitas** com `@relation(fields: [...], references: [...])`.
 - **Decimais para dinheiro**: `Decimal @db.Decimal(10, 2)`.
 - **Soft delete** quando aplicável: `deletedAt DateTime? @map("deleted_at")` + queries com `where: {"deletedAt": None}`.
@@ -480,7 +480,6 @@ class UserRepository:
 
 Hierarquia em [src/core/exceptions.py](../../src/core/exceptions.py):
 
-
 | Exceção             | Status HTTP   | Quando lançar                                           |
 | ------------------- | ------------- | ------------------------------------------------------- |
 | `NotFoundError`     | 404           | Recurso não existe                                      |
@@ -489,11 +488,10 @@ Hierarquia em [src/core/exceptions.py](../../src/core/exceptions.py):
 | `UnauthorizedError` | 401           | Autenticação ausente/inválida                           |
 | `DomainError`       | 400 (default) | Erro de domínio genérico                                |
 
-
 Handlers globais já registrados em [src/main.py](../../src/main.py) traduzem essas exceções para um payload uniforme:
 
 ```json
-{"error": {"code": "NOT_FOUND", "message": "...", "details": null}}
+{ "error": { "code": "NOT_FOUND", "message": "...", "details": null } }
 ```
 
 **Service lança, controller nunca captura.** Se precisar de um status novo, criar subclasse de `DomainError` em `src/core/exceptions.py`.
@@ -508,7 +506,6 @@ Logging é **estruturado**, **sanitizado** e **correlacionado por request**. Sta
 
 ### 7.1. Tabela de níveis
 
-
 | Nível      | Visível em prod? | Aciona alerta?        | Exemplo                                                                    |
 | ---------- | ---------------- | --------------------- | -------------------------------------------------------------------------- |
 | `DEBUG`    | Não              | Não                   | Payload bruto, valor de variável                                           |
@@ -516,7 +513,6 @@ Logging é **estruturado**, **sanitizado** e **correlacionado por request**. Sta
 | `WARNING`  | Sim              | Talvez (se frequente) | `payment_retry_succeeded`, `cache_fallback_used`, `config_default_applied` |
 | `ERROR`    | Sim              | Sim                   | Exception não recuperável em request, integração externa falhando          |
 | `CRITICAL` | Sim              | Sim — página alguém   | `database_connection_failed_on_startup`, `jwt_secret_missing`              |
-
 
 Heurística: pense em **quem vai ler** e **o que essa pessoa precisa fazer**. Em dúvida entre dois níveis adjacentes, escolha o **mais baixo**. Não use `ERROR` para validação de input (já é fluxo esperado via `DomainError`).
 
@@ -546,7 +542,7 @@ except PaymentGatewayError:
 
 ### 7.3. Sanitização automática
 
-O patcher em [src/core/logger.py:_patcher](../../src/core/logger.py) mascara recursivamente chaves sensíveis em `extra` (case-insensitive). Lista canônica em `SENSITIVE_KEYS`:
+O patcher em [src/core/logger.py:\_patcher](../../src/core/logger.py) mascara recursivamente chaves sensíveis em `extra` (case-insensitive). Lista canônica em `SENSITIVE_KEYS`:
 
 - **Credenciais**: `password`, `passwd`, `token`, `access_token`, `refresh_token`, `authorization`, `api_key`, `secret`.
 - **Documentos BR**: `cpf`, `cnpj`, `rg`.
@@ -576,13 +572,11 @@ finally:
 
 `LOG_LEVEL` vem de env var (`settings.log_level`, default `INFO`). Recomendações:
 
-
 | Ambiente   | `APP_ENV`     | `LOG_LEVEL`         | Serialize JSON |
 | ---------- | ------------- | ------------------- | -------------- |
 | Dev local  | `development` | `DEBUG` ou `INFO`   | Não            |
 | Test/CI    | `test`        | `INFO` ou `WARNING` | Não            |
 | Production | `production`  | `INFO` ou `WARNING` | Sim            |
-
 
 Para mudar nível em runtime em prod, requeira restart com env var atualizada — endpoint admin para mudança dinâmica não está implementado.
 
@@ -653,12 +647,10 @@ Em ordem crescente de desacoplamento:
 
 Dois níveis com diretórios separados:
 
-
-| Nível           | Diretório                    | Quando rodar            | Característica                                                        |
-| --------------- | ---------------------------- | ----------------------- | --------------------------------------------------------------------- |
-| **Unit**        | `test/unit/<mirror>/`        | Sempre, rápido          | Mocks via `spec=`, sem I/O externo                                    |
+| Nível           | Diretório                    | Quando rodar            | Característica                                                   |
+| --------------- | ---------------------------- | ----------------------- | ---------------------------------------------------------------- |
+| **Unit**        | `test/unit/<mirror>/`        | Sempre, rápido          | Mocks via `spec=`, sem I/O externo                               |
 | **Integration** | `test/integration/<mirror>/` | `pytest -m integration` | Prisma + MySQL efêmero via **Testcontainers** (`MySqlContainer`) |
-
 
 ### Convenções comuns
 
@@ -700,19 +692,19 @@ Objetos de mock e DTOs reaproveitados entre testes são criados exclusivamente p
 ## 11. Armadilhas conhecidas
 
 - **Importar Prisma em service/controller** — só repository.
-- `**HTTPException` em service** — usar `DomainError`/subclasses.
-- `**@staticmethod` em service** — quebra DI e mock.
+- `**HTTPException` em service\*\* — usar `DomainError`/subclasses.
+- `**@staticmethod` em service\*\* — quebra DI e mock.
 - **Mesmo modelo Pydantic para Request e Response** — sempre separar.
-- `**float` para dinheiro** — sempre `Decimal`.
+- `**float` para dinheiro\*\* — sempre `Decimal`.
 - **Repository retornando Pydantic** — devolve dict, service converte.
 - **Endpoint sem anotação de retorno** — sem `-> <Response>` (ou `response_model=` legado), FastAPI vaza qualquer coisa que o service devolva.
 - **Endpoint sem `summary=` / `responses=`** — `/docs` fica útil só para quem leu o código. Usar `ErrorResponse` de [src/core/exceptions.py](../../src/core/exceptions.py) em `responses={...}` para documentar 404/409; padrão completo em [§4 OpenAPI / Swagger](#openapi--swagger).
 - **Redefinir `ErrorResponse` por módulo** — o envelope é único, importar de `src.core.exceptions`. Múltiplos modelos com mesmo formato poluem o `/components/schemas` do OpenAPI.
-- `**Depends()` como default** (`x: T = Depends(...)`) em vez de `Annotated[T, Depends(...)]` — funciona mas o linter (python:S8410) flaga; prefira sempre `Annotated`.
-- `**Mock()` sem `spec`** — esconde refactor breakage.
-- `**dict/SimpleNamespace cru em teste quando há factory disponível** — duplicação esconde drift de schema; sempre usar` make__*()`do barrel`test/factories/`.
+- `**Depends()` como default\*\* (`x: T = Depends(...)`) em vez de `Annotated[T, Depends(...)]` — funciona mas o linter (python:S8410) flaga; prefira sempre `Annotated`.
+- `**Mock()` sem `spec`\*\* — esconde refactor breakage.
+- `**dict/SimpleNamespace cru em teste quando há factory disponível** — duplicação esconde drift de schema; sempre usar` make\_\_\*()`do barrel`test/factories/`.
 - **PATCH sem `exclude_unset=True`** — campos não enviados viram `null` e sobrescrevem dados.
-- `**shared/` crescendo sem critério** — antes de adicionar algo, pergunte: "isso é genuinamente transversal, ou só não decidi a qual módulo pertence?".
+- `**shared/` crescendo sem critério\*\* — antes de adicionar algo, pergunte: "isso é genuinamente transversal, ou só não decidi a qual módulo pertence?".
 - **"Tudo é use case"** — para reads triviais, controller → service → repository é suficiente; não inventar camada extra.
 
 ---
@@ -771,4 +763,3 @@ Até lá, o padrão flat documentado nas seções 1–11 é a referência.
 - Skills: `[.claude/skills/create-module/SKILL.md](../../.claude/skills/create-module/SKILL.md)`, `[create-endpoint](../../.claude/skills/create-endpoint/SKILL.md)`, `[pydantic-schema](../../.claude/skills/pydantic-schema/SKILL.md)`, `[pytest-unit](../../.claude/skills/pytest-unit/SKILL.md)`, `[pytest-integration](../../.claude/skills/pytest-integration/SKILL.md)`, `[logger-level-choice](../../.claude/skills/logger-level-choice/SKILL.md)`, `[logger-message-structure](../../.claude/skills/logger-message-structure/SKILL.md)`, `[logger-config-performance](../../.claude/skills/logger-config-performance/SKILL.md)`.
 - Agents: `[fastapi-architect](../../.claude/agents/fastapi-architect.md)`, `[pizzaria-reviewer](../../.claude/agents/pizzaria-reviewer.md)`.
 - ADRs: `[docs/adr/0001-adotar-modular-monolith-em-camadas.md](../adr/0001-adotar-modular-monolith-em-camadas.md)`, `[docs/adr/0002-padroes-de-logging.md](../adr/0002-padroes-de-logging.md)`.
-

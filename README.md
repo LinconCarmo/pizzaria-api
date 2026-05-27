@@ -40,7 +40,7 @@ uv sync
 docker compose up -d
 
 # Banco
-uv run poe prisma-migrate-dev
+uv run poe prisma-migrate-create
 
 # Dev server
 uv run poe start-dev
@@ -52,21 +52,22 @@ Após `start-dev`, Swagger/OpenAPI disponível em <http://127.0.0.1:8000/docs>.
 
 Tasks definidas em [`pyproject.toml`](pyproject.toml) (`[tool.poe.tasks]`). Executar com `uv run poe <task>`.
 
-| Intent | Comando |
-|---|---|
-| Lint | `poe lint` |
-| Format (aplica) | `poe format` |
-| Format (check) | `poe format-check` |
-| Type-check | `poe type-check` |
-| Testes unitários | `poe test` (alias: `poe test-unit`) |
-| Testes de integração | `poe test-integration` |
-| Cobertura | `poe test-cov` |
-| Prisma — gerar client | `poe prisma-generate` |
-| Prisma — migrar (dev) | `poe prisma-migrate-dev` |
-| Prisma — deploy migrations | `poe prisma-deploy` |
-| Dev server | `poe start-dev` |
-| Pipeline local | `poe ci` (lint → format-check → type-check → test) |
-| Instalar pre-commit | `poe pre-commit-install` |
+| Intent                     | Comando                                            |
+| -------------------------- | -------------------------------------------------- |
+| Lint                       | `poe lint`                                         |
+| Format (aplica)            | `poe format`                                       |
+| Format (check)             | `poe format-check`                                 |
+| Type-check                 | `poe type-check`                                   |
+| Testes unitários           | `poe test` (alias: `poe test-unit`)                |
+| Testes de integração       | `poe test-integration`                             |
+| Cobertura                  | `poe test-cov`                                     |
+| Prisma - formatar shcema   | `poe prisma-format`                                |
+| Prisma — gerar client      | `poe prisma-generate`                              |
+| Prisma — migrar (dev)      | `poe prisma-migrate-create`                        |
+| Prisma — deploy migrations | `poe prisma-deploy`                                |
+| Dev server                 | `poe start-dev`                                    |
+| Pipeline local             | `poe ci` (lint → format-check → type-check → test) |
+| Instalar pre-commit        | `poe pre-commit-install`                           |
 
 ## Infraestrutura local
 
@@ -76,12 +77,12 @@ docker compose down    # parar
 docker ps              # listar containers
 ```
 
-| Serviço | Porta |
-|---|---|
-| MySQL | 3306 |
-| RabbitMQ | 5672 |
+| Serviço     | Porta |
+| ----------- | ----- |
+| MySQL       | 3306  |
+| RabbitMQ    | 5672  |
 | RabbitMQ UI | 15672 |
-| Redis | 6379 |
+| Redis       | 6379  |
 
 **RabbitMQ Management UI**: <http://localhost:15672> (usuário/senha do `.env`).
 

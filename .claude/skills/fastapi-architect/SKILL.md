@@ -35,24 +35,24 @@ Use esta skill para transformar requisitos funcionais em um **plano técnico** a
 
 Cada endpoint no plano deve declarar metadata Swagger alinhada a [`docs/architecture/modular-monolith.md` §4](../../../docs/architecture/modular-monolith.md):
 
-| Elemento | Convenção | Obrigatório? |
-| --- | --- | --- |
-| `tags` no router | PascalCase plural do domínio (`Users`, `Orders`) | Sim |
-| `summary` | Imperativo curto em inglês (≤ 60 chars): `Create user`, `Get user by id` | Sim |
-| `-> <Response>` | Return annotation; não usar `response_model=` em código novo | Sim |
-| `status_code` | Explícito em 201 (POST) e 204 (DELETE) | 201/204 sempre |
-| `responses=` | Payloads de erro com `ErrorResponse` de `src.core.exceptions` | Sim (ver tabela abaixo) |
-| `description` | Regra ou efeito colateral não óbvio (soft delete, fila, email) | Quando aplicável |
+| Elemento         | Convenção                                                                | Obrigatório?            |
+| ---------------- | ------------------------------------------------------------------------ | ----------------------- |
+| `tags` no router | PascalCase plural do domínio (`Users`, `Orders`)                         | Sim                     |
+| `summary`        | Imperativo curto em inglês (≤ 60 chars): `Create user`, `Get user by id` | Sim                     |
+| `-> <Response>`  | Return annotation; não usar `response_model=` em código novo             | Sim                     |
+| `status_code`    | Explícito em 201 (POST) e 204 (DELETE)                                   | 201/204 sempre          |
+| `responses=`     | Payloads de erro com `ErrorResponse` de `src.core.exceptions`            | Sim (ver tabela abaixo) |
+| `description`    | Regra ou efeito colateral não óbvio (soft delete, fila, email)           | Quando aplicável        |
 
 **`responses=` mínimo por verbo** (incluir na tabela de Endpoints do plano):
 
-| Verbo | Status mínimos em `responses=` |
-| --- | --- |
-| `GET /<r>/{id}` | `404` |
-| `POST /<r>` | `409` quando há unicidade; `422` opcional |
-| `PATCH /<r>/{id}` | `404`; `409` quando aplicável |
-| `DELETE /<r>/{id}` | `404` |
-| `POST /<r>/{id}/<action>` | `404`; `409` (conflito de estado) |
+| Verbo                     | Status mínimos em `responses=`            |
+| ------------------------- | ----------------------------------------- |
+| `GET /<r>/{id}`           | `404`                                     |
+| `POST /<r>`               | `409` quando há unicidade; `422` opcional |
+| `PATCH /<r>/{id}`         | `404`; `409` quando aplicável             |
+| `DELETE /<r>/{id}`        | `404`                                     |
+| `POST /<r>/{id}/<action>` | `404`; `409` (conflito de estado)         |
 
 ## Pre-flight: informações necessárias
 
@@ -118,12 +118,12 @@ src/infra/prisma/schema.prisma       # MODIFICADO
 
 URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 
-| Método | Path (recurso) | Status | Request | Response | summary | responses= | Exceções (service) |
-| ------ | -------------- | ------ | ------- | -------- | ------- | ---------- | ------------------ |
-| POST   | /orders        | 201    | CreateOrderRequest | OrderResponse | Create order | 409, 422 | ConflictError |
-| GET    | /orders/{id}   | 200    | —       | OrderResponse | Get order by id | 404 | NotFoundError |
-| PATCH  | /orders/{id}   | 200    | UpdateOrderRequest | OrderResponse | Update order (partial) | 404, 409 | NotFoundError, ConflictError |
-| DELETE | /orders/{id}   | 204    | —       | —        | Soft delete order | 404 | NotFoundError |
+| Método | Path (recurso) | Status | Request            | Response      | summary                | responses= | Exceções (service)           |
+| ------ | -------------- | ------ | ------------------ | ------------- | ---------------------- | ---------- | ---------------------------- |
+| POST   | /orders        | 201    | CreateOrderRequest | OrderResponse | Create order           | 409, 422   | ConflictError                |
+| GET    | /orders/{id}   | 200    | —                  | OrderResponse | Get order by id        | 404        | NotFoundError                |
+| PATCH  | /orders/{id}   | 200    | UpdateOrderRequest | OrderResponse | Update order (partial) | 404, 409   | NotFoundError, ConflictError |
+| DELETE | /orders/{id}   | 204    | —                  | —             | Soft delete order      | 404        | NotFoundError                |
 
 ## Schemas Pydantic
 
@@ -191,7 +191,7 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 ## Implementação — skills a invocar (em ordem)
 
 1. **(manual)** Editar `src/infra/prisma/schema.prisma` com os models propostos.
-2. **(manual)** `poe prisma-migrate-dev` — gera migration e roda.
+2. **(manual)** `poe prisma-migrate-create` — gera migration e roda.
 3. **Skill `create-module <feature>`** — scaffold inicial (inclui `test/factories/<feature>.py`).
 4. **Skill `pydantic-schema`** — preencher schemas conforme tabela acima.
 5. **Skill `create-endpoint`** — para cada endpoint além do CRUD básico.
@@ -207,6 +207,7 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 ## Diretrizes operacionais
 
 **Fazer:**
+
 - Ler `src/`, `schema.prisma` e `src/core/exceptions.py` para entender o estado atual.
 - Buscar features similares já implementadas para reuso de padrões.
 - Marcar trade-offs explicitamente (ex: "denormalizar campo X — aceita custo de consistência eventual").
@@ -216,6 +217,7 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 - Listar todas as suposições explicitamente.
 
 **Não fazer:**
+
 - Escrever código de produção. A saída é o plano markdown.
 - Rodar comandos que mudam state (`prisma migrate`, edits). Sugerir no plano — execução é do implementador.
 - Tomar decisões irreversíveis sem sinalizar (schema do banco, breaking changes de API).
@@ -224,14 +226,14 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 
 ## Heurísticas para decisões comuns
 
-| Pergunta | Heurística |
-| --- | --- |
-| Módulo único ou múltiplos? | 1 bounded context (linguagem ubíqua coerente) = 1 módulo. Se o time falaria "User" e "Profile" como coisas separadas, são 2 módulos. |
-| Campo no model ou tabela à parte? | Dado faz parte da identidade do recurso? Embed. É um tipo aberto (eventos, versões, histórico)? Tabela à parte. |
-| Onde vai a regra? | Validação de formato → schema (Pydantic). Validação que envolve DB (existência, unicidade) → service. |
-| Síncrono ou assíncrono (RabbitMQ)? | Operação precisa ser observável imediatamente no response? Síncrono. Pode ser "fire and forget" / cross-service? Assíncrono. |
-| Cache (Redis)? | Read-heavy + dado muda <10x/dia + tolera staleness curta? Cachear. Caso contrário, não. |
-| Soft delete? | Recurso tem auditoria/histórico relevante (usuários, transações)? Soft delete (`deleted_at`). Recurso descartável (sessão, cache row)? Hard delete. |
+| Pergunta                           | Heurística                                                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Módulo único ou múltiplos?         | 1 bounded context (linguagem ubíqua coerente) = 1 módulo. Se o time falaria "User" e "Profile" como coisas separadas, são 2 módulos.                |
+| Campo no model ou tabela à parte?  | Dado faz parte da identidade do recurso? Embed. É um tipo aberto (eventos, versões, histórico)? Tabela à parte.                                     |
+| Onde vai a regra?                  | Validação de formato → schema (Pydantic). Validação que envolve DB (existência, unicidade) → service.                                               |
+| Síncrono ou assíncrono (RabbitMQ)? | Operação precisa ser observável imediatamente no response? Síncrono. Pode ser "fire and forget" / cross-service? Assíncrono.                        |
+| Cache (Redis)?                     | Read-heavy + dado muda <10x/dia + tolera staleness curta? Cachear. Caso contrário, não.                                                             |
+| Soft delete?                       | Recurso tem auditoria/histórico relevante (usuários, transações)? Soft delete (`deleted_at`). Recurso descartável (sessão, cache row)? Hard delete. |
 
 ## Auto-check antes de entregar o plano
 

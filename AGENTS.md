@@ -22,20 +22,21 @@ Setup completo (clone, `uv sync`, `docker compose up`, `.env`) está em [`README
 
 Tudo via `poe` (poethepoet). Definições canônicas em `[tool.poe.tasks]` de [`pyproject.toml`](pyproject.toml).
 
-| Intent | Comando |
-|---|---|
-| Lint | `poe lint` |
-| Format (aplica) | `poe format` |
-| Format (check) | `poe format-check` |
-| Type-check | `poe type-check` |
-| Testes unitários | `poe test` (alias: `poe test-unit`) |
-| Testes de integração | `poe test-integration` |
-| Cobertura | `poe test-cov` |
-| Prisma — gerar client | `poe prisma-generate` |
-| Prisma — migrar (dev) | `poe prisma-migrate-dev` |
-| Prisma — deploy migrations | `poe prisma-deploy` |
-| Dev server | `poe start-dev` |
-| Pipeline CI local | `poe ci` (lint → format-check → type-check → test) |
+| Intent                     | Comando                                            |
+| -------------------------- | -------------------------------------------------- |
+| Lint                       | `poe lint`                                         |
+| Format (aplica)            | `poe format`                                       |
+| Format (check)             | `poe format-check`                                 |
+| Type-check                 | `poe type-check`                                   |
+| Testes unitários           | `poe test` (alias: `poe test-unit`)                |
+| Testes de integração       | `poe test-integration`                             |
+| Cobertura                  | `poe test-cov`                                     |
+| Prisma — formatar schema   | `poe prisma-format`                                |
+| Prisma — gerar client      | `poe prisma-generate`                              |
+| Prisma — migrar (dev)      | `poe prisma-migrate-create`                        |
+| Prisma — deploy migrations | `poe prisma-deploy`                                |
+| Dev server                 | `poe start-dev`                                    |
+| Pipeline CI local          | `poe ci` (lint → format-check → type-check → test) |
 
 ## Arquitetura
 
@@ -61,18 +62,18 @@ Tudo via `poe` (poethepoet). Definições canônicas em `[tool.poe.tasks]` de [`
 
 Guias passo-a-passo para tarefas comuns. **Conteúdo é prosa + templates portáveis** — qualquer agent que leia este arquivo pode segui-los. O diretório `.claude/skills/` é o path de auto-descoberta do Claude Code (limitação atual da ferramenta); o markdown dentro é vendor-neutro.
 
-| Playbook | Path | Quando usar |
-|---|---|---|
-| `create-module` | [`.claude/skills/create-module/SKILL.md`](.claude/skills/create-module/SKILL.md) | Scaffold de uma feature nova em `src/modules/<feature>/` |
-| `create-endpoint` | [`.claude/skills/create-endpoint/SKILL.md`](.claude/skills/create-endpoint/SKILL.md) | Adicionar endpoint a um módulo existente |
-| `pydantic-schema` | [`.claude/skills/pydantic-schema/SKILL.md`](.claude/skills/pydantic-schema/SKILL.md) | Criar/refatorar DTOs Request/Response Pydantic v2 |
-| `pytest-unit` | [`.claude/skills/pytest-unit/SKILL.md`](.claude/skills/pytest-unit/SKILL.md) | Testes unitários (sem DB) com mocks tipados |
-| `pytest-integration` | [`.claude/skills/pytest-integration/SKILL.md`](.claude/skills/pytest-integration/SKILL.md) | Testes de integração (Prisma + MySQL real via docker) |
-| `logger-level-choice` | [`.claude/skills/logger-level-choice/SKILL.md`](.claude/skills/logger-level-choice/SKILL.md) | Escolher nível (DEBUG/INFO/WARNING/ERROR/CRITICAL) ao adicionar um log |
-| `logger-message-structure` | [`.claude/skills/logger-message-structure/SKILL.md`](.claude/skills/logger-message-structure/SKILL.md) | Escrever a mensagem: `event_name` em inglês, `bind(...)`, `exception()`, sem PII |
-| `logger-config-performance` | [`.claude/skills/logger-config-performance/SKILL.md`](.claude/skills/logger-config-performance/SKILL.md) | Configurar `LOG_LEVEL`, sinks, lazy eval e rate limit em hot paths |
-| `pizzaria-reviewer` | [`.claude/skills/pizzaria-reviewer/SKILL.md`](.claude/skills/pizzaria-reviewer/SKILL.md) | Code review contra os padrões arquiteturais — use antes de PR ou para auditar módulo existente |
-| `fastapi-architect` | [`.claude/skills/fastapi-architect/SKILL.md`](.claude/skills/fastapi-architect/SKILL.md) | Planejar feature antes de implementar — transforma requisitos em plano técnico detalhado |
+| Playbook                    | Path                                                                                                     | Quando usar                                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `create-module`             | [`.claude/skills/create-module/SKILL.md`](.claude/skills/create-module/SKILL.md)                         | Scaffold de uma feature nova em `src/modules/<feature>/`                                       |
+| `create-endpoint`           | [`.claude/skills/create-endpoint/SKILL.md`](.claude/skills/create-endpoint/SKILL.md)                     | Adicionar endpoint a um módulo existente                                                       |
+| `pydantic-schema`           | [`.claude/skills/pydantic-schema/SKILL.md`](.claude/skills/pydantic-schema/SKILL.md)                     | Criar/refatorar DTOs Request/Response Pydantic v2                                              |
+| `pytest-unit`               | [`.claude/skills/pytest-unit/SKILL.md`](.claude/skills/pytest-unit/SKILL.md)                             | Testes unitários (sem DB) com mocks tipados                                                    |
+| `pytest-integration`        | [`.claude/skills/pytest-integration/SKILL.md`](.claude/skills/pytest-integration/SKILL.md)               | Testes de integração (Prisma + MySQL real via docker)                                          |
+| `logger-level-choice`       | [`.claude/skills/logger-level-choice/SKILL.md`](.claude/skills/logger-level-choice/SKILL.md)             | Escolher nível (DEBUG/INFO/WARNING/ERROR/CRITICAL) ao adicionar um log                         |
+| `logger-message-structure`  | [`.claude/skills/logger-message-structure/SKILL.md`](.claude/skills/logger-message-structure/SKILL.md)   | Escrever a mensagem: `event_name` em inglês, `bind(...)`, `exception()`, sem PII               |
+| `logger-config-performance` | [`.claude/skills/logger-config-performance/SKILL.md`](.claude/skills/logger-config-performance/SKILL.md) | Configurar `LOG_LEVEL`, sinks, lazy eval e rate limit em hot paths                             |
+| `pizzaria-reviewer`         | [`.claude/skills/pizzaria-reviewer/SKILL.md`](.claude/skills/pizzaria-reviewer/SKILL.md)                 | Code review contra os padrões arquiteturais — use antes de PR ou para auditar módulo existente |
+| `fastapi-architect`         | [`.claude/skills/fastapi-architect/SKILL.md`](.claude/skills/fastapi-architect/SKILL.md)                 | Planejar feature antes de implementar — transforma requisitos em plano técnico detalhado       |
 
 ## Convenções de teste
 
