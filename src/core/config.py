@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     app_env: Literal["development", "production", "test"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_url_test: str = ""
+    host: str = "127.0.0.1"
+    port: int = 8000
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

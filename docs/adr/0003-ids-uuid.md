@@ -63,9 +63,8 @@ O Prisma Python client espera `str` em `where={"id": ...}` para colunas `String`
 
 ```python
 async def get_by_id(self, user_id: UUID) -> User | None:
-    return await self._db.user.find_first(
-        where=cast(Any, {"id": str(user_id), "deletedAt": None}),
-    )
+    where: types.UserWhereInput = {"id": str(user_id), "deletedAt": None}
+    return await self._db.user.find_first(where=where)
 ```
 
 Service, controller, factories e testes nunca lidam com `str` de UUID. Mensagens de erro continuam funcionando (`f"User {user_id} not found"` — `UUID` tem `__str__` adequado).

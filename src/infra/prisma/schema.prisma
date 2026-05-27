@@ -16,25 +16,56 @@ model HealthCheck {
   @@map("health_checks")
 }
 
-enum UserRole {
-  CUSTOMER
-  STAFF
-  ADMIN
-}
-
 model User {
-id             String    @id @default(uuid()) @db.Char(36)
-email          String    @unique
-name           String
-hashedPassword String    @map("hashed_password")
-role           UserRole  @default(CUSTOMER)
-createdAt      DateTime  @default(now()) @map("created_at")
-updatedAt      DateTime  @updatedAt @map("updated_at")
-deletedAt      DateTime? @map("deleted_at")
+  id             String   @id @default(uuid()) @db.Char(36)
+  email          String   @unique
+  name           String
+  hashedPassword String   @map("password_hash")
+  isActive       Boolean  @default(true) @map("is_active")
+  roleId         String   @map("role_id") @db.Char(36)
+  role           Role     @relation(fields: [roleId], references: [id])
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-@@index([role])
-@@index([deletedAt])
-@@map("users")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([deletedAt])
+  @@map("users")
 }
 
+model Role {
+  id          String   @id @default(uuid()) @db.Char(36)
+  name        String   @unique
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Char(36)
+  code        String   @unique
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Char(36)
+  permissionId String     @map("permission_id") @db.Char(36)
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}

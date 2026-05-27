@@ -1,5 +1,7 @@
 from collections.abc import Iterator
-from typing import Any
+from typing import (
+    Any,  # noqa: TID251 -- registros de log capturados são dicts dinâmicos navegados nas asserções
+)
 
 import pytest
 

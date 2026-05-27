@@ -7,7 +7,7 @@ description: Adiciona um endpoint a um módulo existente em src/modules/<feature
 
 Use esta skill quando o módulo **já existe** em `src/modules/<feature>/` e você precisa adicionar mais uma operação HTTP. Para criar um módulo do zero, use a skill `create-module`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seções 4 e 6). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+> Regras normativas: [conventions.md](../../../docs/architecture/conventions.md). Detalhe/templates: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seções 4 e 6). Decisões: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md), [ADR 0003](../../../docs/adr/0003-ids-uuid.md), [ADR 0004](../../../docs/adr/0004-naming-com-prefixo-de-entidade.md).
 
 ## Quando usar
 
@@ -24,7 +24,7 @@ Use esta skill quando o módulo **já existe** em `src/modules/<feature>/` e voc
 
 ## Pre-flight checklist
 
-1. **Módulo existe**: `ls src/modules/<feature>/controllers/v1/<feature>.py` deve achar o arquivo (controller versionado dentro do módulo).
+1. **Módulo existe**: `ls src/modules/<feature>/controllers/v1/<entity>_controller.py` deve achar o arquivo (controller versionado dentro do módulo). Naming dos arquivos: [conventions.md#naming](../../../docs/architecture/conventions.md#naming).
 2. **Operação suportada pelo modelo Prisma**: confirmar que `schema.prisma` tem os campos/relações necessários.
 3. **REST coerente**: a nova rota segue o REST plural do módulo? URLs finais são prefixadas com `/api/v1` (aplicado em `src/main.py`):
    - `GET /api/v1/<features>` — listagem
@@ -41,7 +41,7 @@ Use esta skill quando o módulo **já existe** em `src/modules/<feature>/` e voc
 
 Implemente nesta ordem para manter cada camada tipada e testável de baixo pra cima:
 
-### 1. Schema (`schema.py`)
+### 1. Schema (`<entity>_schema.py`)
 
 Adicionar (não substituir) os DTOs necessários:
 
@@ -57,46 +57,54 @@ class <Feature>SummaryResponse(_BaseSchema):
     # subset enxuto para listagens
 ```
 
-**Regras**:
-- `*Request` para input, `*Response` para output. Nunca o mesmo modelo.
-- Para `PATCH`, todos os campos opcionais.
-- Para listagens grandes, considerar `*SummaryResponse` (subset).
-- Sempre adicionar `examples=[...]` em `Field` para enriquecer o `/docs`.
+**Regras** (resumo): `*Request` ≠ `*Response`; `PATCH` com todos os campos opcionais; `*SummaryResponse` para listagens grandes; `examples=[...]` em `Field`. Regra completa: [conventions.md#pydantic](../../../docs/architecture/conventions.md#pydantic).
 
 > Use a skill `pydantic-schema` se a validação for não-trivial (validators, regex, restrições cruzadas).
 
-### 2. Repository (`repository.py`)
+### 2. Repository (`<entity>_repository.py`)
 
 Se a operação precisa de acesso a dados não coberto, adicionar **tanto no Protocol quanto na classe**:
 
 ```python
 from uuid import UUID
 
+from prisma import types  # tipar os args do Prisma — nunca dict cru nem cast(Any)
+
 
 class <Feature>RepositoryProtocol(Protocol):
     # ... existentes ...
-    async def update(self, <feature>_id: UUID, data: dict) -> dict | None: ...
+    async def update(
+        self,
+        <feature>_id: UUID,
+        *,
+        name: str | None = None,
+    ) -> dict[str, object]: ...
     async def delete(self, <feature>_id: UUID) -> None: ...
 
 
 class <Feature>Repository:
     # ... existentes ...
-    async def update(self, <feature>_id: UUID, data: dict) -> dict | None:
-        return await self._db.<feature>.update(
-            where={"id": str(<feature>_id)},
-            data=data,
-        )
+    async def update(self, <feature>_id: UUID, *, name: str | None = None) -> dict[str, object]:
+        data: types.<Feature>UpdateInput = {}
+        if name is not None:
+            data["name"] = name
+
+        row = await self._db.<feature>.update(where={"id": str(<feature>_id)}, data=data)
+        if row is None:  # prisma-client-py: update retorna None se não existir
+            raise NotFoundError(f"<Feature> {<feature>_id} not found")
+        return row.model_dump()
 
     async def delete(self, <feature>_id: UUID) -> None:
         await self._db.<feature>.delete(where={"id": str(<feature>_id)})
 ```
 
 **Regras**:
-- Métodos do repository retornam dicts (resultado bruto do Prisma) ou `None`. **Não retornam Pydantic** — quem converte é o service.
+- Métodos do repository retornam `dict[str, object]` (resultado bruto do Prisma via `.model_dump()`), `dict[str, object] | None` ou `None`. **Não retornam Pydantic nem `prisma.models.*`** — quem converte é o service. (`dict` sem parâmetros falha no `mypy --strict`.)
+- **Receba campos por keyword (`*, name=None`), não um `dict` cru** — assim você monta um `types.<Feature>UpdateInput` tipado e passa pro Prisma sem `cast(Any)` (um `dict[str, object]` não casa com o `TypedDict` que o Prisma espera).
 - Não embutir regra de negócio. Repository é I/O puro.
 - Se a query precisa de joins/relations, adicionar `include={"items": True}` no Prisma call.
 
-### 3. Service (`service.py`)
+### 3. Service (`<entity>_service.py`)
 
 Adicionar o método com regra de negócio:
 
@@ -119,10 +127,8 @@ class <Feature>Service:
         if not patch:
             return await self.get_by_id(<feature>_id)
 
-        entity = await self._repository.update(<feature>_id, patch)
-
-        if entity is None:
-            raise NotFoundError(f"<Feature> {<feature>_id} not found")
+        # repo recebe campos por keyword e levanta NotFoundError se não existir
+        entity = await self._repository.update(<feature>_id, **patch)
 
         return <Feature>Response.model_validate(entity)
 
@@ -141,9 +147,9 @@ class <Feature>Service:
 - Toda checagem de existência é responsabilidade do service, não do controller.
 - Operações que cruzam múltiplos writes → considerar `TransactionRunner` (segunda leva de skills).
 
-### 4. Controller (`controllers/v1/<feature>.py`)
+### 4. Controller (`controllers/v1/<entity>_controller.py`)
 
-Editar o controller versionado do módulo (`src/modules/<feature>/controllers/v1/<feature>.py`) e adicionar o handler:
+Editar o controller versionado do módulo (`src/modules/<feature>/controllers/v1/<entity>_controller.py`) e adicionar o handler:
 
 ```python
 from typing import Annotated
@@ -195,15 +201,17 @@ async def delete_<feature>(
 - Nenhum `try/except` no controller — handlers globais cuidam.
 - Nada de lógica de negócio aqui.
 
-### 5. Router (`router.py`)
+### 5. Router (`<entity>_router.py`)
 
-Normalmente nada a fazer: o `router.py` do módulo já agrega o `controllers/v1/<feature>.py`, então o endpoint novo já está exposto via `/api/v1` (prefixo aplicado em `src/main.py`). Só mexer aqui se:
-- Estiver dividindo a `v1` em múltiplos sub-controllers (ex.: `controllers/v1/<feature>.py` + `controllers/v1/sessions.py`) — adicionar mais um `router.include_router(...)`.
-- Estiver introduzindo uma nova versão (`controllers/v2/`) — registrar lado-a-lado em `router.py` e adicionar `app.include_router(<feature>_router, prefix="/api/v2")` em `main.py` (mantendo o v1 enquanto a depreciação acontece).
+Normalmente nada a fazer: o `<entity>_router.py` do módulo já agrega o `controllers/v1/<entity>_controller.py`, então o endpoint novo já está exposto via `/api/v1` (prefixo aplicado em `src/main.py`). Só mexer aqui se:
+- Estiver dividindo a `v1` em múltiplos sub-controllers (ex.: `controllers/v1/<entity>_controller.py` + `controllers/v1/session_controller.py`) — adicionar mais um `router.include_router(...)`.
+- Estiver introduzindo uma nova versão (`controllers/v2/`) — registrar lado-a-lado em `<entity>_router.py` e adicionar `app.include_router(<feature>_router, prefix="/api/v2")` em `main.py` (mantendo o v1 enquanto a depreciação acontece).
 
 ## Status codes (via DomainError)
 
-Mapeamento já feito em `src/core/exceptions.py` — não precisa repetir no controller:
+Service lança, controller nunca captura; **sem `HTTPException`**. Status novo → nova subclasse de `DomainError` em `src/core/exceptions.py`. Regra completa: [conventions.md#erros](../../../docs/architecture/conventions.md#erros).
+
+Mapa que vale para este fluxo (escolha a exceção certa ao implementar o método do service):
 
 | Situação | Exceção | Status HTTP |
 |---|---|---|
@@ -213,13 +221,9 @@ Mapeamento já feito em `src/core/exceptions.py` — não precisa repetir no con
 | Sem autenticação válida | `UnauthorizedError` | 401 |
 | Outro erro de domínio | `DomainError` (custom) | 400 (default) |
 
-Se precisar de um código diferente, criar nova subclasse em `src/core/exceptions.py` herdando de `DomainError`.
-
 ## Documentando erros no Swagger (`responses=`)
 
-Os handlers globais em `src/main.py` já convertem `DomainError`/subclasses no envelope `{"error": {"code": "...", "message": "..."}}`. Mas o Swagger só mostra o **2xx** se o decorator não declarar mais nada — front e clientes externos não conseguem ver que `404`/`409` são respostas possíveis.
-
-Solução: passar `responses=` no decorator usando o `ErrorResponse` exportado por `src/core/exceptions.py`:
+Handlers globais serializam o envelope, mas o `/docs` só mostra o **2xx** sem `responses=`. Passe `responses=` no decorator usando o `ErrorResponse` de `src/core/exceptions.py` (o mínimo por verbo está em [conventions.md#openapi](../../../docs/architecture/conventions.md#openapi)):
 
 ```python
 @router.get(
@@ -231,16 +235,6 @@ Solução: passar `responses=` no decorator usando o `ErrorResponse` exportado p
 )
 async def get_order(...) -> OrderResponse: ...
 ```
-
-Convenção mínima por verbo (URLs finais já com `/api/v1` aplicado em `main.py`):
-
-| Verbo | `responses=` mínimo |
-|---|---|
-| `GET /api/v1/<r>/{id}` | `404` |
-| `POST /api/v1/<r>` | `409` (se houver constraint de unicidade), `422` é automático via `RequestValidationError` |
-| `PATCH /api/v1/<r>/{id}` | `404`, `409` quando aplicável |
-| `DELETE /api/v1/<r>/{id}` | `404` |
-| `POST /api/v1/<r>/{id}/<action>` | `404`, `409` (conflito de estado) |
 
 > Se `ErrorResponse` ainda não existir em `src/core/exceptions.py`, criar como `class ErrorResponse(BaseModel): error: ErrorDetail` espelhando o envelope dos handlers globais.
 
@@ -273,6 +267,8 @@ class CreateOrderRequest(BaseModel):
 
 ## Verification
 
+Atalhos `poe` para lint/type/test em [conventions.md#comandos](../../../docs/architecture/conventions.md#comandos).
+
 1. **Lint/typing**: `uv run ruff check src/modules/<feature>/` e `uv run mypy src/modules/<feature>/` → limpos.
 2. **App sobe sem erro**: `uv run uvicorn src.main:app --reload`.
 3. **Aparece em `/docs`**: o endpoint novo está listado com `summary`, schema correto, exemplos, e a aba "Responses" mostra os status documentados em `responses=` (não só o 2xx).
@@ -296,10 +292,10 @@ class CreateOrderRequest(BaseModel):
 
 ## Verification checklist (antes de entregar)
 
-- [ ] Schema(s) novo(s) em `schema.py` — Request e Response separados.
-- [ ] Método novo no Protocol **e** na classe concreta do `repository.py` (se acessa DB).
-- [ ] Método novo no `service.py` — sem importar Prisma, sem capturar exceções, levanta `DomainError`.
-- [ ] Handler novo em `controllers/v1/<feature>.py` — com `-> <Response>` (return annotation), `status_code` correto, `summary=`, e `responses=` cobrindo os erros esperados (mínimo 404 para `/{id}`, 409 quando houver conflito). Path do decorator é relativo (`""`, `"/{id}"`) — `/api/v1/<recurso>` é resolvido por `prefix` + `include_router`.
+- [ ] Schema(s) novo(s) em `<entity>_schema.py` — Request e Response separados.
+- [ ] Método novo no Protocol **e** na classe concreta do `<entity>_repository.py` (se acessa DB).
+- [ ] Método novo no `<entity>_service.py` — sem importar Prisma, sem capturar exceções, levanta `DomainError`.
+- [ ] Handler novo em `controllers/v1/<entity>_controller.py` — com `-> <Response>` (return annotation), `status_code` correto, `summary=`, e `responses=` cobrindo os erros esperados (mínimo 404 para `/{id}`, 409 quando houver conflito). Path do decorator é relativo (`""`, `"/{id}"`) — `/api/v1/<recurso>` é resolvido por `prefix` + `include_router`.
 - [ ] Sem `try/except` no controller. Sem `HTTPException` em lugar nenhum.
 - [ ] Naming HTTP REST-coerente.
 - [ ] `ruff` e `mypy` limpos.

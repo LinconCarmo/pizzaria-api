@@ -7,7 +7,7 @@ description: Cria testes de integração usando httpx.AsyncClient + Prisma real 
 
 Use esta skill para testes que exercitam o pipeline HTTP completo (FastAPI + Pydantic + Service + Repository + Prisma + MySQL real). Para testes que só validam lógica de Service/Repository com mocks, use `pytest-unit`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção 10 — Testes). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+> Referência — regras normativas: [conventions.md#testes](../../../docs/architecture/conventions.md#testes). Detalhe: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seção 10 — Testes). Decisões: [ADRs](../../../docs/adr/).
 
 O MySQL é levantado automaticamente via **Testcontainers** (`MySqlContainer`) — sem `docker compose up` manual, sem variável `DATABASE_URL_TEST`. O container sobe por sessão de teste e é destruído ao final. Basta ter o Docker em execução.
 
@@ -54,16 +54,14 @@ O MySQL é levantado automaticamente via **Testcontainers** (`MySqlContainer`) �
 
 ## File placement e naming
 
-- **Path**: `test/integration/<mirror>/test_<basename>.py`.
+Naming/espelhamento de path são normativos ([#testes](../../../docs/architecture/conventions.md#testes)): teste em `test/integration/<mirror>/test_<entity>_<layer>.py`, mesma convenção dos unit tests mas em diretório separado para rodar isoladamente (`pytest test/integration` vs `pytest test/unit`). Mapa concreto:
 
   | Source | Teste de integração |
   |---|---|
-  | `src/modules/orders/controller.py` | `test/integration/modules/orders/test_controller.py` |
-  | `src/modules/users/repository.py` | `test/integration/modules/users/test_repository.py` |
+  | `src/modules/orders/order_controller.py` | `test/integration/modules/orders/test_order_controller.py` |
+  | `src/modules/users/user_repository.py` | `test/integration/modules/users/test_user_repository.py` |
 
-- **Filename**: `test_<basename>.py` — mesmo prefixo dos unit tests, mas em diretório separado para rodar isoladamente (`pytest test/integration` vs `pytest test/unit`).
-
-- **Marker**: cada teste decorado com `@pytest.mark.integration` (permite excluir do CI rápido com `pytest -m "not integration"`).
+- **Marker** (específico de integração): cada teste decorado com `@pytest.mark.integration` (permite excluir do CI rápido com `pytest -m "not integration"`).
 
 ## Conftest base (uma vez por suíte)
 
@@ -151,17 +149,17 @@ from prisma import Prisma
 
 ### 2. Marker + factories de seed
 
-Seeds que escrevem direto no banco vêm de `test/factories/<feature>.py` (mesmo barrel usado pelos unit tests). Nada de `_seed_*` local quando já existe `seed_<entity>`.
+Seeds que escrevem direto no banco vêm de `test/factories/<entity>_factory.py` (mesmo barrel usado pelos unit tests), sem `_seed_*` local quando já existe `seed_<entity>` — regra de factories em [#testes](../../../docs/architecture/conventions.md#testes).
 
 ```python
 pytestmark = pytest.mark.integration
 
-from test.factories.users import seed_user
+from test.factories.user_factory import seed_user
 # Para builders de payload HTTP, importe também o DTO factory:
-from test.factories.users import make_create_user_request
+from test.factories.user_factory import make_create_user_request
 ```
 
-Assinatura padrão da factory de seed: `async def seed_<entity>(db: Prisma, *, <defaults>, **overrides) -> <PrismaModel>`. Ver §10 do `modular-monolith.md` para a regra geral.
+Assinatura padrão da factory de seed: `async def seed_<entity>(db: Prisma, *, <defaults>, **overrides) -> <PrismaModel>`. Regra geral de factories em [#testes](../../../docs/architecture/conventions.md#testes).
 
 ### 3. Testes — AAA com banco real
 
@@ -212,7 +210,7 @@ Para cada endpoint novo, no mínimo:
 
 ## Convenções
 
-- **AAA preservado** mesmo com banco real. Seeds = Arrange; chamada HTTP = Act; assertions HTTP + DB = Assert.
+- **AAA preservado** mesmo com banco real ([#testes](../../../docs/architecture/conventions.md#testes)): seeds = Arrange; chamada HTTP = Act; assertions HTTP + DB = Assert.
 - **Sem `time.sleep` ou retry**. Se o teste é flaky, o problema é design (timing real do banco, locks). Investigar, não disfarçar.
 - **Sem ordem entre testes**. `clean_database` autouse garante estado limpo. Não escrever testes que dependem de ordem de execução.
 - **Não compartilhar state entre testes via fixture session-scoped**, exceto `client` e `db`. Dados → fixture function-scoped + cleanup.
@@ -225,7 +223,7 @@ DEFAULT_EMAIL = "user@example.com"
 NON_EXISTENT_ID = 99999
 ```
 
-Builders de **dados** (seed no DB, payloads para HTTP) **sempre** ficam em `test/factories/<feature>.py` — mesmo barrel usado pelos unit tests, importar via `from test.factories import seed_<entity>, make_create_<entity>_request`. Helpers que orquestram HTTP (ex: `_create_user_via_http(client, **overrides)` que faz POST + assert 201) podem ficar locais no arquivo de teste — eles não são factory de dado.
+Builders de **dados** (seed no DB, payloads para HTTP) ficam em `test/factories/<entity>_factory.py` por norma ([#testes](../../../docs/architecture/conventions.md#testes)) — importar via `from test.factories import seed_<entity>, make_create_<entity>_request`. Específico de integração: helpers que orquestram HTTP (ex: `_create_user_via_http(client, **overrides)` que faz POST + assert 201) podem ficar locais no arquivo de teste — eles não são factory de dado.
 
 ## Async
 
@@ -265,12 +263,12 @@ Integration tests são **lentos por design** (banco real + overhead de container
 
 ## Verification checklist (antes de entregar)
 
-- [ ] Arquivo em `test/integration/<mirror>/test_<basename>.py`.
+- [ ] Arquivo em `test/integration/<mirror>/test_<entity>_<layer>.py`.
 - [ ] `pytestmark = pytest.mark.integration` no topo (ou marker individual).
 - [ ] `test/integration/conftest.py` existe com fixtures `mysql_container`, `db`, `client`, `clean_database`.
 - [ ] `mysql_container` é fixture **síncrona** (`@pytest.fixture`) e `db`/`client`/`clean_database` são `@pytest_asyncio.fixture`.
 - [ ] `os.environ["DATABASE_URL"]` é definido dentro da fixture `db` **antes** de `client.connect()`.
-- [ ] Seeds usam `seed_<entity>` de `test/factories/<feature>.py`; payloads HTTP usam `make_create_<entity>_request(...).model_dump(mode="json")`. Sem `_seed_*` locais nem dicts crus duplicando defaults.
+- [ ] Seeds usam `seed_<entity>` de `test/factories/<entity>_factory.py`; payloads HTTP usam `make_create_<entity>_request(...).model_dump(mode="json")`. Sem `_seed_*` locais nem dicts crus duplicando defaults.
 - [ ] Para cada endpoint: ≥ 1 happy path + ≥ 1 erro de domínio (404/409/422).
 - [ ] Asserts em HTTP **e** no DB (estado persistido).
 - [ ] Sem `time.sleep`, sem retry, sem ordem implícita.

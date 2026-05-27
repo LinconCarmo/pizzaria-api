@@ -62,8 +62,13 @@ class UserResponse(_BaseSchema):
     email: EmailStr = Field(..., description="User email address", examples=["ana@example.com"])
     name: str = Field(..., description="Full name", examples=["Ana Silva"])
     role: UserRole = Field(..., description="User role", examples=["CUSTOMER"])
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
+    is_active: bool = Field(..., description="Whether the user is active", examples=[True])
+    created_at: datetime = Field(
+        ..., description="Creation timestamp", examples=["2026-05-20T12:00:00Z"]
+    )
+    updated_at: datetime = Field(
+        ..., description="Last update timestamp", examples=["2026-05-20T12:00:00Z"]
+    )
 
 
 class PaginationMeta(_BaseSchema):

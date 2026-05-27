@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from prisma import Prisma
 
-from src.modules.users.schema import UserRole
+from src.modules.users.user_schema import UserRole
 from test.factories import make_create_user_request
 
 pytestmark = pytest.mark.integration
@@ -15,7 +15,7 @@ DEFAULT_PASSWORD = "strongpass123"
 NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
 
 
-async def _create_user(client: AsyncClient, **overrides: object) -> dict:
+async def _create_user(client: AsyncClient, **overrides: object) -> dict[str, object]:
     payload = make_create_user_request(**overrides).model_dump(mode="json")
     response = await client.post("/api/v1/users", json=payload)
     assert response.status_code == 201, response.text

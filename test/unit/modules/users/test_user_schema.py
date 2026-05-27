@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.modules.users.schema import (
+from src.modules.users.user_schema import (
     CreateUserRequest,
     UserResponse,
     UserRole,

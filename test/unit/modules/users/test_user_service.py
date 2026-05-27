@@ -3,15 +3,15 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.core.exceptions import ConflictError, NotFoundError
-from src.modules.users.repository import UserRepositoryProtocol
-from src.modules.users.schema import (
+from src.core.exceptions import ConflictError, InternalError, NotFoundError
+from src.modules.users.user_repository import UserRepositoryProtocol
+from src.modules.users.user_schema import (
     UpdateUserRequest,
     UserListResponse,
     UserResponse,
     UserRole,
 )
-from src.modules.users.service import UserService
+from src.modules.users.user_service import UserService
 from test.factories import make_create_user_request, make_user_row
 
 USER_ID = UUID("00000000-0000-4000-8000-000000000001")
@@ -72,6 +72,19 @@ async def test_get_by_id_raises_not_found_when_repository_returns_none(
 
     with pytest.raises(NotFoundError):
         await service.get_by_id(NON_EXISTENT_ID)
+
+
+async def test_to_response_raises_internal_error_when_role_relation_missing(
+    service: UserService, repo: AsyncMock
+):
+    repo.get_by_id.return_value = make_user_row(role_name=None)
+
+    with pytest.raises(InternalError) as exc_info:
+        await service.get_by_id(USER_ID)
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.code == "INTERNAL_ERROR"
+    assert exc_info.value.message == "Internal error"
 
 
 async def test_list_paginated_computes_total_pages_correctly(service: UserService, repo: AsyncMock):

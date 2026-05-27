@@ -5,9 +5,9 @@ from fastapi.testclient import TestClient
 
 from src.core.exceptions import ConflictError, NotFoundError
 from src.main import app
-from src.modules.users.dependencies import get_user_service
-from src.modules.users.schema import PaginationMeta, UserListResponse
-from src.modules.users.service import UserService
+from src.modules.users.user_dependencies import get_user_service
+from src.modules.users.user_schema import PaginationMeta, UserListResponse
+from src.modules.users.user_service import UserService
 from test.factories import make_user_response
 
 USER_ID = UUID("00000000-0000-4000-8000-000000000001")

@@ -7,7 +7,7 @@ description: Configurar e ajustar o logger do pizzaria-api — `LOG_LEVEL` por a
 
 Use esta skill para tudo que envolva **configuração do logger global**, **destinos de log** e **performance em pontos de alto throughput**. **Escolha de nível** fica na skill `logger-level-choice`. **Formato da mensagem por chamada** fica na skill `logger-message-structure`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção "Logging"). Decisão: [ADR 0002](../../../docs/adr/0002-padroes-de-logging.md). Setup atual: [`src/core/logger.py`](../../../src/core/logger.py).
+> Referência — regras normativas: [conventions.md#logger](../../../docs/architecture/conventions.md#logger). Detalhe: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seção "Logging"). Decisão: [ADR 0002](../../../docs/adr/0002-padroes-de-logging.md). Setup atual: [`src/core/logger.py`](../../../src/core/logger.py).
 
 ## Quando usar
 
@@ -30,7 +30,7 @@ Use esta skill para tudo que envolva **configuração do logger global**, **dest
 - **Único sink**: `sys.stdout` em formato texto (dev/test) ou JSON serializado (prod).
 - **Nível**: lido de `settings.log_level` (default `INFO`, configurável via env var `LOG_LEVEL`).
 - **Cor**: habilitada em `app_env == "development"`.
-- **Patcher global**: `_patcher` aplica redaction (lista `SENSITIVE_KEYS`) e injeta `request_id` a partir de `request_id_var`.
+- **Patcher global**: `_patcher` aplica redaction (lista `SENSITIVE_KEYS`) e injeta `request_id` a partir de `request_id_var` — sanitização automática e `request_id` automático são normativos ([#logger](../../../docs/architecture/conventions.md#logger)).
 
 ## Configuração por ambiente
 
@@ -156,8 +156,7 @@ audit_logger.bind(actor_id=user.id, action="user_deleted", target_id=target.id).
 
 ## Anti-padrões
 
-- **`print(...)` no código de produção**: bypassa nível, formato, redaction e correlation. Sempre `logger.<level>(...)`.
-- **`logger.add(...)` espalhado por módulos**: a config é centralizada em [`src/core/logger.py`](../../../src/core/logger.py). Adicionar sink em outro lugar quebra a previsibilidade.
+- **`print(...)` no código de produção** e **config de sinks fora de [`src/core/logger.py`](../../../src/core/logger.py)**: ambos proibidos por norma ([#logger](../../../docs/architecture/conventions.md#logger)). `print` bypassa nível/formato/redaction/correlation; `logger.add(...)` espalhado quebra a previsibilidade da config centralizada.
 - **`logging.getLogger(...)`** (stdlib): o projeto usa `loguru`. Não misturar.
 - **Mudar nível em runtime via flag in-memory** (sem ADR / endpoint admin auditado): vira "alguém ligou DEBUG em prod e esqueceu". Mantenha por env var + restart.
 - **Sink de arquivo committed no repositório** (`logger.add("debug.log")` em código de feature): use stdout, deixe o coletor externo (Datadog/Loki/CloudWatch) cuidar de persistência.

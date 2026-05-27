@@ -8,6 +8,8 @@ from httpx import ASGITransport, AsyncClient
 from prisma import Prisma
 from testcontainers.mysql import MySqlContainer
 
+from src.infra.seed import seed_roles as seed_default_roles
+
 
 @pytest.fixture(scope="session")
 def mysql_container() -> MySqlContainer:
@@ -33,13 +35,17 @@ async def db(mysql_container: MySqlContainer) -> AsyncGenerator[Prisma]:
         check=True,
         env={**os.environ, "DATABASE_URL": db_url},
     )
-
     client = Prisma(datasource={"url": db_url}, use_dotenv=False)
     await client.connect()
     try:
         yield client
     finally:
         await client.disconnect()
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def seed_roles(db: Prisma) -> None:
+    await seed_default_roles(db)
 
 
 @pytest_asyncio.fixture(autouse=True)

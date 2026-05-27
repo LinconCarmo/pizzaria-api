@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Use esta skill para transformar requisitos funcionais em um **plano técnico** aderente ao padrão Layered Modular Monolith do pizzaria-api, **sem escrever código**. A implementação é feita depois com as skills `create-module`, `create-endpoint`, `pydantic-schema`, `pytest-unit` e `pytest-integration` — este plano indica quais invocar e com quais parâmetros.
 
-> Fonte canônica do padrão: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md). Decisão arquitetural: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md). Releia esses documentos sempre que houver dúvida sobre direção de dependência, fronteiras ou nomenclatura.
+> Regras normativas: [conventions.md](../../../docs/architecture/conventions.md). Detalhe: [modular-monolith.md](../../../docs/architecture/modular-monolith.md). Decisões: ADRs (ex.: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md)). Releia sempre que houver dúvida sobre direção de dependência, fronteiras ou nomenclatura.
 
 ## Modelo mental do projeto
 
@@ -16,43 +16,24 @@ Use esta skill para transformar requisitos funcionais em um **plano técnico** a
 - **Arquitetura**: Layered Modular Monolith ("NestJS-like" em FastAPI).
 - **Estrutura por módulo** (`src/modules/<feature>/`):
   ```
-  __init__.py | router.py | controllers/v1/<feature>.py | service.py | repository.py | schema.py | dependencies.py
+  __init__.py | <entity>_router.py | controllers/v1/<entity>_controller.py | <entity>_service.py | <entity>_repository.py | <entity>_schema.py | <entity>_dependencies.py
   ```
-- **Naming**: arquivos curtos, sem prefixo do módulo na raiz; em `controllers/v1/` o arquivo segue o recurso (`orders.py`, não `orders.controller.py`).
+- **Naming**: arquivos em snake_case prefixados pela entidade (`<entity>_<layer>.py`); diretório plural, prefixo singular. Regra: [conventions.md#naming](../../../docs/architecture/conventions.md#naming).
 - **Versionamento de URL**: prefixo `/api/v1` aplicado em `src/main.py` no `include_router` — não no controller. Controller declara só o recurso (`prefix="/users"`). URL final = `/api/v1` + `/users` + path do handler. Exceção: `/health` sem prefixo de versão.
-- **Camadas** (direção: controller → service → repository; schema transversal):
-  - **Router** (`router.py`) — agrega `controllers/v1/<feature>.py` (e futuras v2/v3). Ponto estável importado por `main.py` via `app.include_router(<feature>_router, prefix="/api/v1")`.
-  - **Controller** (`controllers/v1/<feature>.py`) — Pydantic in/out, chama service. Sem regra, sem `try/except`, sem `HTTPException`, sem Prisma. Retorno via `-> <Response>` (não `response_model=`). DI: `Annotated[<Service>, Depends(get_<feature>_service)]`. OpenAPI: `summary=`, `responses=` com `ErrorResponse` (ver § Convenções OpenAPI).
-  - **Service** (`service.py`) — regra, orquestração, transações. Lança `DomainError`. Não importa Prisma. Depende de `<Feature>RepositoryProtocol`. PATCH: `data.model_dump(exclude_unset=True)` para não sobrescrever campos omitidos.
-  - **Repository** (`repository.py`) — único que toca Prisma. Protocol + impl; retorna modelo Prisma ou `dict` (nunca Pydantic). Converte `UUID` → `str` na borda do Prisma. Traduz erros: `UniqueViolationError` → `ConflictError`, `RecordNotFoundError` → `NotFoundError`.
-  - **Schema** (`schema.py`) — Pydantic v2; Request e Response sempre separados. IDs como `uuid.UUID`; money como `Decimal`.
-- **DI**: `dependencies.py` expõe `get_<feature>_repository` e `get_<feature>_service` com `Annotated[T, Depends(...)]` (não `T = Depends(...)`). Repository recebe `Annotated[Prisma, Depends(get_db)]` de `src/infra/database.py`. Proibido `@staticmethod`.
-- **Exceções de domínio**: `src/core/exceptions.py` (`DomainError`, `NotFoundError`, `ConflictError`, `ValidationError`, `UnauthorizedError`). Handlers globais em `src/main.py`.
+- **Camadas** (direção: controller → service → repository; schema transversal). Regra completa: [conventions.md#camadas](../../../docs/architecture/conventions.md#camadas).
+  - **Router** (`<entity>_router.py`) — agrega `controllers/v1/<entity>_controller.py` (e futuras v2/v3). Ponto estável importado por `main.py` via `app.include_router(<feature>_router, prefix="/api/v1")`.
+  - **Controller** (`controllers/v1/<entity>_controller.py`) — Pydantic in/out, chama service; sem regra/Prisma. Retorno via `-> <Response>`. OpenAPI: `summary=`, `responses=` (ver § Convenções OpenAPI).
+  - **Service** (`<entity>_service.py`) — regra, orquestração, transações; lança `DomainError`, não importa Prisma. PATCH: `data.model_dump(exclude_unset=True)`.
+  - **Repository** (`<entity>_repository.py`) — único que toca Prisma; Protocol + impl, retorna `dict` (nunca Pydantic). Converte `UUID` → `str` na borda; traduz erros do Prisma.
+  - **Schema** (`<entity>_schema.py`) — Pydantic v2; Request e Response separados. Regra: [conventions.md#pydantic](../../../docs/architecture/conventions.md#pydantic).
+- **DI**: `<entity>_dependencies.py` expõe `get_<feature>_repository` e `get_<feature>_service` com `Annotated[T, Depends(...)]`; proibido `@staticmethod`. Regra: [conventions.md#di](../../../docs/architecture/conventions.md#di).
+- **Exceções de domínio**: `src/core/exceptions.py` (`DomainError` + subclasses), handlers globais em `src/main.py`. Regra: [conventions.md#erros](../../../docs/architecture/conventions.md#erros).
 - **Cross-cutting**: `src/core/` (config, logger, exceptions, middlewares), `src/infra/` (database/Prisma), `src/shared/` (utils, types compartilhados).
 - **Testes**: `test/unit/` (sem DB, mocks com `spec=`) e `test/integration/` (Prisma + MySQL efêmero via Testcontainers — ver template de integração).
 
 ## Convenções OpenAPI (por endpoint)
 
-Cada endpoint no plano deve declarar metadata Swagger alinhada a [`docs/architecture/modular-monolith.md` §4](../../../docs/architecture/modular-monolith.md):
-
-| Elemento         | Convenção                                                                | Obrigatório?            |
-| ---------------- | ------------------------------------------------------------------------ | ----------------------- |
-| `tags` no router | PascalCase plural do domínio (`Users`, `Orders`)                         | Sim                     |
-| `summary`        | Imperativo curto em inglês (≤ 60 chars): `Create user`, `Get user by id` | Sim                     |
-| `-> <Response>`  | Return annotation; não usar `response_model=` em código novo             | Sim                     |
-| `status_code`    | Explícito em 201 (POST) e 204 (DELETE)                                   | 201/204 sempre          |
-| `responses=`     | Payloads de erro com `ErrorResponse` de `src.core.exceptions`            | Sim (ver tabela abaixo) |
-| `description`    | Regra ou efeito colateral não óbvio (soft delete, fila, email)           | Quando aplicável        |
-
-**`responses=` mínimo por verbo** (incluir na tabela de Endpoints do plano):
-
-| Verbo                     | Status mínimos em `responses=`            |
-| ------------------------- | ----------------------------------------- |
-| `GET /<r>/{id}`           | `404`                                     |
-| `POST /<r>`               | `409` quando há unicidade; `422` opcional |
-| `PATCH /<r>/{id}`         | `404`; `409` quando aplicável             |
-| `DELETE /<r>/{id}`        | `404`                                     |
-| `POST /<r>/{id}/<action>` | `404`; `409` (conflito de estado)         |
+Cada endpoint no plano declara metadata Swagger: `tags` PascalCase plural, `summary` imperativo em inglês, retorno `-> <Response>`, `status_code=` explícito (201/204), e `responses=` com `ErrorResponse` cobrindo os erros esperados do verbo (`GET /{id}` → 404 · `POST` → 409 quando há unicidade · `PATCH /{id}` → 404/409 · `DELETE /{id}` → 404 · `POST /{id}/<action>` → 404/409). Regra completa: [conventions.md#openapi](../../../docs/architecture/conventions.md#openapi).
 
 ## Pre-flight: informações necessárias
 
@@ -94,21 +75,21 @@ model Order {
 
 ## Estrutura de arquivos
 
-<Árvore exata com marcação de "NOVO" / "MODIFICADO".>
+<Árvore exata com marcação de "NOVO" / "MODIFICADO". Regra: [conventions.md#estrutura](../../../docs/architecture/conventions.md#estrutura) / [#naming](../../../docs/architecture/conventions.md#naming).>
 
 ```
-src/modules/orders/                  # NOVO
+src/modules/orders/                  # NOVO  (diretório plural; arquivos em snake_case prefixados por `order`)
 ├── __init__.py
-├── router.py
+├── order_router.py
 ├── controllers/
 │   ├── __init__.py
 │   └── v1/
 │       ├── __init__.py
-│       └── orders.py
-├── service.py
-├── repository.py
-├── schema.py
-└── dependencies.py
+│       └── order_controller.py
+├── order_service.py
+├── order_repository.py
+├── order_schema.py
+└── order_dependencies.py
 
 src/main.py                          # MODIFICADO (include_router com prefix="/api/v1")
 src/infra/prisma/schema.prisma       # MODIFICADO
@@ -138,7 +119,7 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 
 ### POST /api/v1/orders
 
-1. Controller (`controllers/v1/orders.py`) recebe `CreateOrderRequest`; injeta `Annotated[OrderService, Depends(get_order_service)]`.
+1. Controller (`controllers/v1/order_controller.py`) recebe `CreateOrderRequest`; injeta `Annotated[OrderService, Depends(get_order_service)]`.
 2. Service `OrderService.create`:
    1. Valida existência do customer (chama `customer_repository.find_by_id`).
    2. Persiste order via repository.
@@ -156,7 +137,7 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 
 <Imports cross-module sempre via Protocol importado do módulo dono.>
 
-- `OrderService` usa `CustomerRepositoryProtocol` de `src/modules/customers/repository.py`.
+- `OrderService` usa `CustomerRepositoryProtocol` de `src/modules/customers/customer_repository.py` (import: `from src.modules.customers.customer_repository import CustomerRepositoryProtocol`).
 
 ## Exceções
 
@@ -167,35 +148,32 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 
 ## Plano de testes
 
-### Factories (`test/factories/<feature>.py`)
+> Regra geral de testes e factories (AAA, `spec=`, sem `Any`, as 4 variantes de factory, cobertura mínima): [conventions.md#testes](../../../docs/architecture/conventions.md#testes). Abaixo, o que o plano deve listar especificamente para esta feature.
 
-- `make_<entity>_row(*, id=...) -> SimpleNamespace` — row Prisma para unit tests.
-- `make_<entity>_response(*, id=...) -> <Entity>Response` — DTO de saída.
-- `make_create_<entity>_request(*, ...) -> Create<Entity>Request` — DTO de entrada.
-- `async seed_<entity>(db, *, ..., **overrides) -> <PrismaModel>` — seed para integration tests.
+### Factories (`test/factories/<entity>_factory.py`)
+
+- `make_<entity>_row`, `make_<entity>_response`, `make_create_<entity>_request`, `seed_<entity>` — com os campos/overrides específicos da entidade desta feature.
 
 ### Unit (`test/unit/modules/<feature>/`)
 
-- `test_service.py`: happy path + erros principais (404, 409, 422).
-- `test_schema.py`: validações de campo (formato, limites).
+- `test_<entity>_service.py`: happy path + erros principais (404, 409, 422).
+- `test_<entity>_schema.py`: validações de campo (formato, limites).
 
 ### Integration (`test/integration/modules/<feature>/`)
 
-- Infra: **Testcontainers** (`MySqlContainer`) — Docker em execução; `conftest.py` sobe container efêmero, aplica `prisma migrate deploy`, expõe fixtures `db`, `client` (`httpx.AsyncClient`) e `clean_database` (autouse).
-- `pytestmark = pytest.mark.integration` no módulo de teste.
-- `test_controller.py`: pipeline HTTP completo contra `/api/v1/<feature>/...`.
-  - ≥ 1 happy path por endpoint (assert HTTP + estado no DB após criação).
-  - ≥ 1 erro esperado por endpoint (404 / 409 / 422).
+- Infra: **Testcontainers** (`MySqlContainer`) — `conftest.py` sobe container efêmero, aplica migrations e expõe `db`, `client` (`httpx.AsyncClient`), `clean_database` (autouse). `pytestmark = pytest.mark.integration`.
+- `test_<entity>_controller.py`: pipeline HTTP completo contra `/api/v1/<feature>/...`.
+  - ≥ 1 happy path por endpoint (assert HTTP + estado no DB) e ≥ 1 erro esperado (404 / 409 / 422).
   - Payloads via `make_create_<entity>_request(...).model_dump(mode="json")`; contexto pré-existente via `seed_<entity>`.
 
 ## Implementação — skills a invocar (em ordem)
 
 1. **(manual)** Editar `src/infra/prisma/schema.prisma` com os models propostos.
 2. **(manual)** `poe prisma-migrate-create` — gera migration e roda.
-3. **Skill `create-module <feature>`** — scaffold inicial (inclui `test/factories/<feature>.py`).
+3. **Skill `create-module <feature>`** — scaffold inicial (inclui `test/factories/<entity>_factory.py`).
 4. **Skill `pydantic-schema`** — preencher schemas conforme tabela acima.
 5. **Skill `create-endpoint`** — para cada endpoint além do CRUD básico.
-6. **Skill `pytest-unit`** + **Skill `pytest-integration`** — testes com factories de `test/factories/<feature>.py`.
+6. **Skill `pytest-unit`** + **Skill `pytest-integration`** — testes com factories de `test/factories/<entity>_factory.py`.
 
 ## Suposições / pontos a confirmar
 
@@ -242,7 +220,7 @@ URL pública = `/api/v1` + recurso + path (ex.: `POST /api/v1/orders`).
 - [ ] Cada endpoint tem método + path + status + Request + Response + exceções.
 - [ ] Fluxo de execução está descrito camada a camada.
 - [ ] Dependências cross-module listadas com referência ao Protocol.
-- [ ] Factories esperadas em `test/factories/<feature>.py` listadas (`make_<entity>_row`, `make_<entity>_response`, `make_create_<entity>_request`, `seed_<entity>`).
+- [ ] Factories esperadas em `test/factories/<entity>_factory.py` listadas (`make_<entity>_row`, `make_<entity>_response`, `make_create_<entity>_request`, `seed_<entity>`).
 - [ ] Plano de testes cobre happy + erros principais (unit + integration com Testcontainers).
 - [ ] Endpoints com 4xx esperado documentam `responses=` com `ErrorResponse` e `summary` em inglês.
 - [ ] Fluxos PATCH descrevem `model_dump(exclude_unset=True)` no service.
