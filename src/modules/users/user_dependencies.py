@@ -4,8 +4,8 @@ from fastapi import Depends
 from prisma import Prisma
 
 from src.infra.database import get_db
-from src.modules.users.repository import UserRepository, UserRepositoryProtocol
-from src.modules.users.service import UserService
+from src.modules.users.user_repository import UserRepository, UserRepositoryProtocol
+from src.modules.users.user_service import UserService
 
 
 def get_user_repository(

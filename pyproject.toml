@@ -29,11 +29,12 @@ dev = [
 ]
 
 [tool.poe.tasks]
-prisma-format           = { cmd = "prisma format --schema=src/infra/prisma/schema.prisma",                       help = "Generate Prisma client" }
+prisma-format           = { cmd = "prisma format --schema=src/infra/prisma/schema.prisma",                       help = "Format Prisma schema" }
 prisma-generate         = { cmd = "prisma generate --schema=src/infra/prisma/schema.prisma",                       help = "Generate Prisma client" }
 prisma-migrate-reset    = { cmd = "prisma migrate reset --schema=src/infra/prisma/schema.prisma",                  help = "Reset database (drop, recreate, re-apply all migrations)" }
-prisma-migrate-create   = { cmd = "prisma migrate dev --schema=src/infra/prisma/schema.prisma --create-only",                    help = "Apply dev migration (writes new migration if needed)" }
+prisma-migrate-create   = { cmd = "prisma migrate dev --schema=src/infra/prisma/schema.prisma --create-only",                    help = "Create migration without applying (--create-only)" }
 prisma-migrate-run      = { cmd = "prisma migrate deploy --schema=src/infra/prisma/schema.prisma",                 help = "Apply pending migrations (no schema changes)" }
+prisma-seed             = { cmd = "python -m src.infra.seed",                                                       help = "Seed default roles (idempotent)" }
 lint                    = { cmd = "ruff check src test",                                                           help = "ruff check" }
 format                  = { cmd = "ruff format src test",                                                          help = "ruff format (apply)" }
 format-check            = { cmd = "ruff format --check src test",                                                  help = "ruff format --check" }
@@ -41,7 +42,7 @@ type-check              = { cmd = "mypy src",                                   
 test                    = { cmd = 'pytest -v -m "not integration"',                                                help = "pytest (excludes integration)" }
 test-integration        = { cmd = "pytest -v -m integration",                                                      help = "pytest -m integration" }
 test-cov                = { cmd = 'pytest -v -m "not integration" --cov=src --cov-report=term-missing',            help = "pytest with coverage report" }
-start-dev               = { cmd = "python -m src",                                                                 help = "uvicorn via custom entrypoint with post-startup log" }
+start-dev               = { cmd = "python -m src",                                                                 help = "dev server (uvicorn) with hot-reload via python -m src" }
 pre-commit-install      = { cmd = "pre-commit install",                                                            help = "install pre-commit hooks" }
 
 [tool.poe.tasks.test-unit]
@@ -71,6 +72,7 @@ select = [
     "UP",  # pyupgrade
     "SIM", # flake8-simplify
     "RUF", # ruff-specific rules
+    "TID", # flake8-tidy-imports (banned-api: typing.Any)
 ]
 ignore = [
     "B008", # function calls in default args — Depends() is idiomatic FastAPI
@@ -78,6 +80,12 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "test/**/*.py" = ["S101"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# `Any` desliga a verificação de tipos. Use tipos concretos, Protocol, `object`,
+# ou os types gerados pelo Prisma (`prisma.types.*`). Casos genuinamente dinâmicos
+# devem ser marcados explicitamente com `# noqa: TID251` + justificativa.
+"typing.Any".msg = "Any está banido — use tipos concretos / Protocol / object / prisma.types.*. Ver AGENTS.md. Exceções: # noqa: TID251 com justificativa."
 
 [tool.ruff.format]
 quote-style = "double"

@@ -20,43 +20,30 @@ Setup completo (clone, `uv sync`, `docker compose up`, `.env`) está em [`README
 
 ## Comandos comuns
 
-Tudo via `poe` (poethepoet). Definições canônicas em `[tool.poe.tasks]` de [`pyproject.toml`](pyproject.toml).
+Tudo via `poe` (poethepoet); definições em `[tool.poe.tasks]` de [`pyproject.toml`](pyproject.toml). Os mais usados: `poe lint`, `poe format`, `poe type-check`, `poe test`, `poe test-integration`, `poe ci`.
 
-| Intent                     | Comando                                            |
-| -------------------------- | -------------------------------------------------- |
-| Lint                       | `poe lint`                                         |
-| Format (aplica)            | `poe format`                                       |
-| Format (check)             | `poe format-check`                                 |
-| Type-check                 | `poe type-check`                                   |
-| Testes unitários           | `poe test` (alias: `poe test-unit`)                |
-| Testes de integração       | `poe test-integration`                             |
-| Cobertura                  | `poe test-cov`                                     |
-| Prisma — formatar schema   | `poe prisma-format`                                |
-| Prisma — gerar client      | `poe prisma-generate`                              |
-| Prisma — migrar (dev)      | `poe prisma-migrate-create`                        |
-| Prisma — deploy migrations | `poe prisma-deploy`                                |
-| Dev server                 | `poe start-dev`                                    |
-| Pipeline CI local          | `poe ci` (lint → format-check → type-check → test) |
+> **Tabela completa**: [`docs/architecture/conventions.md#comandos`](docs/architecture/conventions.md#comandos).
 
 ## Arquitetura
 
 **Fonte canônica** (leia antes de implementar qualquer feature não-trivial):
 
-- [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md) — guideline completo (camadas, persistência, DI, erros, testes, armadilhas).
-- [`docs/adr/0001-adotar-modular-monolith-em-camadas.md`](docs/adr/0001-adotar-modular-monolith-em-camadas.md) — decisão arquitetural.
+- [`docs/architecture/conventions.md`](docs/architecture/conventions.md) — **regras normativas** (o "o quê / deve"), fonte única referenciada por todos.
+- [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md) — detalhamento (exemplos, templates, rationale) dessas regras.
+- [`docs/adr/`](docs/adr/) — decisões (o porquê): [0001](docs/adr/0001-adotar-modular-monolith-em-camadas.md) padrão, [0003](docs/adr/0003-ids-uuid.md) UUID, [0004](docs/adr/0004-naming-com-prefixo-de-entidade.md) naming.
 
-### Non-negotiable (resumo)
+### Non-negotiable (índice)
 
-- **Estrutura de módulo** (`src/modules/<feature>/`): `__init__.py`, `router.py`, `controllers/v1/<feature>.py`, `service.py`, `repository.py`, `schema.py`, `dependencies.py`. O `router.py` agrega `controllers/v1/` (e futuras `v2/`, `v3/`). Arquivos curtos, **sem prefixo do módulo** na raiz (`service.py`, não `users.service.py`). Dentro de `controllers/v1/`, o arquivo segue o recurso (`users.py`, `orders.py`).
-- **Camadas**:
-  - **Controller** — recebe/retorna Pydantic, chama service. Sem regra de negócio. Sem `try/except`.
-  - **Service** — regra, orquestração, transações. Lança `DomainError`. **Não importa Prisma**.
-  - **Repository** — único que toca Prisma. Define `Protocol` + implementação.
-  - **Schema** — Pydantic v2 com `Request` e `Response` separados.
-- **DI**: `dependencies.py` por módulo expõe providers (`get_<feature>_repository`, `get_<feature>_service`); FastAPI `Depends()` wirea tudo. **Proibido `@staticmethod`**.
-- **Exceções de domínio**: `src/core/exceptions.py` — `DomainError`, `NotFoundError`, `ConflictError`, `ValidationError`, `UnauthorizedError`. Handlers globais já registrados em `src/main.py`. **Proibido `HTTPException` na service.**
+Regras normativas completas em [`conventions.md`](docs/architecture/conventions.md). Resumo dos inegociáveis e suas âncoras:
+
+- **Naming** — arquivos `snake_case` prefixados pela entidade (`user_service.py`, **não** `service.py` nem `user.service.py`). → [#naming](docs/architecture/conventions.md#naming)
+- **Camadas** — `controller → service → repository`; service não importa Prisma; repository é o único que toca. → [#camadas](docs/architecture/conventions.md#camadas)
+- **DI** — `Annotated[T, Depends(...)]` em `<entity>_dependencies.py`; **proibido `@staticmethod`**. → [#di](docs/architecture/conventions.md#di)
+- **Erros** — `DomainError` + subclasses; **proibido `HTTPException` na service**; handlers globais em `src/main.py`. → [#erros](docs/architecture/conventions.md#erros)
+- **Pydantic** — `Request`/`Response` separados; `Decimal` p/ money; `uuid.UUID` p/ ids. → [#pydantic](docs/architecture/conventions.md#pydantic) · [#uuid](docs/architecture/conventions.md#uuid)
+- **`Any` é banido** (ruff `TID251`) — sem `cast(Any)`; tipar args do Prisma com `types.*`. → [#tipos](docs/architecture/conventions.md#tipos)
+- **Cross-module** — sempre via `Protocol` do módulo dono; nunca importar Prisma de outro módulo. → [#camadas](docs/architecture/conventions.md#camadas)
 - **Cross-cutting**: `src/core/` (config, logger, exceptions, middlewares, security) — `src/infra/` (database/Prisma) — `src/shared/` (utils, types compartilhados).
-- **Comunicação cross-module**: sempre via `Protocol` exportado pelo módulo dono. Nunca importar Prisma de outro módulo.
 
 ## Playbooks operacionais
 
@@ -66,6 +53,7 @@ Guias passo-a-passo para tarefas comuns. **Conteúdo é prosa + templates portá
 | --------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `create-module`             | [`.claude/skills/create-module/SKILL.md`](.claude/skills/create-module/SKILL.md)                         | Scaffold de uma feature nova em `src/modules/<feature>/`                                       |
 | `create-endpoint`           | [`.claude/skills/create-endpoint/SKILL.md`](.claude/skills/create-endpoint/SKILL.md)                     | Adicionar endpoint a um módulo existente                                                       |
+| `prisma-migration`          | [`.claude/skills/prisma-migration/SKILL.md`](.claude/skills/prisma-migration/SKILL.md)                   | Alterar `schema.prisma` e gerar/aplicar a migration correspondente                             |
 | `pydantic-schema`           | [`.claude/skills/pydantic-schema/SKILL.md`](.claude/skills/pydantic-schema/SKILL.md)                     | Criar/refatorar DTOs Request/Response Pydantic v2                                              |
 | `pytest-unit`               | [`.claude/skills/pytest-unit/SKILL.md`](.claude/skills/pytest-unit/SKILL.md)                             | Testes unitários (sem DB) com mocks tipados                                                    |
 | `pytest-integration`        | [`.claude/skills/pytest-integration/SKILL.md`](.claude/skills/pytest-integration/SKILL.md)               | Testes de integração (Prisma + MySQL real via docker)                                          |
@@ -77,11 +65,7 @@ Guias passo-a-passo para tarefas comuns. **Conteúdo é prosa + templates portá
 
 ## Convenções de teste
 
-- **Padrão AAA** (Arrange / Act / Assert) explícito.
-- **`test/unit/`** — sem hit em DB, HTTP, Redis, RabbitMQ. Mocks via `spec=`.
-- **`test/integration/`** — usa Prisma + MySQL real (docker-compose). Marker `@pytest.mark.integration`. `httpx.AsyncClient` para exercitar o pipeline HTTP do FastAPI.
-- **Factories** centralizadas em `test/factories/<feature>.py` (`make_<entity>_row`, `make_<entity>_response`, `make_create_<entity>_request`, `seed_<entity>`).
-- **Sem `asyncio_mode` manual** — está em `pyproject.toml` (`asyncio_mode = "auto"`).
+Regras completas em [`conventions.md#testes`](docs/architecture/conventions.md#testes). Em resumo: **AAA** explícito; `test/unit/` sem I/O (mocks via `spec=`); `test/integration/` com Prisma + MySQL real e marker `@pytest.mark.integration`; factories em `test/factories/<entity>_factory.py`; arquivos de teste em `snake_case` espelhando a origem (`test_<entity>_service.py`); **sem `Any`**.
 
 ## Tooling específico do Claude Code (opcional)
 

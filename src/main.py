@@ -13,7 +13,7 @@ from src.core.exceptions import (
 from src.core.middlewares import LoggingMiddleware
 from src.infra.database import lifespan
 from src.modules.health.router import router as health_router
-from src.modules.users.router import router as users_router
+from src.modules.users.user_router import router as users_router
 
 app = FastAPI(lifespan=lifespan)
 

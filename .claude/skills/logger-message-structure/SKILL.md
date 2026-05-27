@@ -7,7 +7,7 @@ description: Estruturar a mensagem e o contexto de cada chamada de log no pizzar
 
 Use esta skill para escrever **a mensagem** de cada log e **os campos de contexto**. **Escolha de nível** fica na skill `logger-level-choice`. **Configuração de ambiente, sinks e performance** ficam na skill `logger-config-performance`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção "Logging"). Decisão: [ADR 0002](../../../docs/adr/0002-padroes-de-logging.md). Configuração: [`src/core/logger.py`](../../../src/core/logger.py).
+> Referência — regras normativas: [conventions.md#logger](../../../docs/architecture/conventions.md#logger). Detalhe: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seção "Logging"). Decisão: [ADR 0002](../../../docs/adr/0002-padroes-de-logging.md). Configuração: [`src/core/logger.py`](../../../src/core/logger.py).
 
 ## Quando usar
 
@@ -20,9 +20,11 @@ Use esta skill para escrever **a mensagem** de cada log e **os campos de context
 - Precisa decidir o **nível** (DEBUG/INFO/WARNING/...) → `logger-level-choice`.
 - Está configurando sink, env var, formatação global ou pensando em performance → `logger-config-performance`.
 
+> As regras normativas (`event_name` inglês snake_case, `bind` não f-string, `request_id` automático, sanitização `SENSITIVE_KEYS`, `logger.exception` em vez de `error(str(e))`, não logar-e-reraise nem logar `DomainError`) vivem em [#logger](../../../docs/architecture/conventions.md#logger). Esta skill é a **expansão prática** delas — o **como** escrever a mensagem e o contexto.
+
 ## Padrão `event_name` em inglês
 
-A mensagem é um **substantivo curto em inglês**, snake_case, descrevendo o evento. Não é uma frase narrativa.
+Regra: nome em inglês snake_case ([#logger](../../../docs/architecture/conventions.md#logger)). A mensagem é um **substantivo curto**, descrevendo o evento — não uma frase narrativa.
 
 | ✅ Bom                          | ❌ Ruim                                                   |
 |--------------------------------|-----------------------------------------------------------|
@@ -39,7 +41,7 @@ Por que em inglês:
 
 ## Contexto estruturado, não strings concatenadas
 
-A regra: **nunca interpolar variáveis na mensagem**. Sempre passar como contexto via `logger.bind(...)`.
+Regra: nunca interpolar variáveis na mensagem; contexto sempre via `logger.bind(...)` ([#logger](../../../docs/architecture/conventions.md#logger)). Como aplicar:
 
 ```python
 # ✅ Correto
@@ -75,7 +77,7 @@ with logger.contextualize(order_id=order.id):
 
 ## Correlation ID — `request_id` é automático
 
-Não passe `request_id=...` manualmente. O `LoggingMiddleware` ([src/core/middlewares.py](../../../src/core/middlewares.py)) seta `request_id_var` (ContextVar) no início de cada request; o patcher em [`src/core/logger.py`](../../../src/core/logger.py) injeta o valor em `record["extra"]["request_id"]` automaticamente.
+Não passar `request_id=...` manual (regra: [#logger](../../../docs/architecture/conventions.md#logger)). O `LoggingMiddleware` ([src/core/middlewares.py](../../../src/core/middlewares.py)) seta `request_id_var` (ContextVar) no início de cada request; o patcher em [`src/core/logger.py`](../../../src/core/logger.py) injeta o valor em `record["extra"]["request_id"]` automaticamente.
 
 ```python
 # Em qualquer log dentro de um request HTTP — request_id aparece automaticamente
@@ -100,7 +102,7 @@ finally:
 
 ## Sanitização — `SENSITIVE_KEYS` é automático
 
-O patcher mascara automaticamente chaves sensíveis em `extra` (recursivo em dicts/listas). Lista canônica em [`src/core/logger.py:SENSITIVE_KEYS`](../../../src/core/logger.py):
+Sanitização automática de PII/credenciais é normativa ([#logger](../../../docs/architecture/conventions.md#logger)): o patcher mascara chaves sensíveis em `extra` (recursivo em dicts/listas). Lista canônica em [`src/core/logger.py:SENSITIVE_KEYS`](../../../src/core/logger.py):
 
 - **Credenciais**: `password`, `passwd`, `token`, `access_token`, `refresh_token`, `authorization`, `api_key`, `secret`
 - **Documentos BR**: `cpf`, `cnpj`, `rg`
@@ -132,7 +134,7 @@ logger.bind(token_prefix=token[:6]).debug("token_check")
 
 ## Exceptions — sempre com traceback
 
-Use `logger.exception("event_name")` dentro do `except`. Loguru captura o traceback automaticamente.
+Regra: `logger.exception("event_name")` no `except` (nunca `error(str(e))`), não logar-e-reraise, não logar `DomainError` antes de `raise` ([#logger](../../../docs/architecture/conventions.md#logger)). Loguru captura o traceback automaticamente:
 
 ```python
 # ✅ Correto
@@ -199,24 +201,20 @@ except UniqueViolationError as exc:
 
 ## Anti-padrões
 
-- **F-strings com dados**: `logger.info(f"User {id}")` → quebra estruturação e sanitização.
-- **Logar payloads brutos sem critério**: vira gigabytes em prod e pode vazar campos não previstos.
-- **Passar `request_id=` manual**: redundante; já vem do `request_id_var`.
-- **`logger.error(str(e))`**: perde traceback. Use `logger.exception(...)`.
-- **Logar e re-raise**: duplica.
-- **Logar `DomainError` antes de raise** no service: o handler global já loga.
-- **Mensagens em português / frases narrativas**: dificulta busca e padronização.
-- **Loggar passwords/tokens "só em DEBUG"**: o patcher mascara, mas o hábito leva à falha quando alguém esquece e usa f-string.
+Os anti-padrões que correspondem a regras compartilhadas (f-string com dados, `request_id=` manual, `logger.error(str(e))`, logar-e-reraise, logar `DomainError` antes de raise, logar PII/credenciais) estão consolidados em [#logger](../../../docs/architecture/conventions.md#logger). Específicos desta skill (formato da mensagem):
+
+- **Mensagens em português / frases narrativas**: dificulta busca e padronização — use `event_name` snake_case em inglês.
+- **Logar payloads brutos sem critério**: vira gigabytes em prod e pode vazar campos não previstos; passe só os campos relevantes.
 
 ## Exemplo completo
 
 ```python
-# src/modules/orders/service.py
+# src/modules/orders/order_service.py
 from src.core.logger import logger
 
 from src.core.exceptions import NotFoundError
-from src.modules.orders.repository import OrderRepositoryProtocol
-from src.modules.orders.schema import CreateOrderRequest, OrderResponse
+from src.modules.orders.order_repository import OrderRepositoryProtocol
+from src.modules.orders.order_schema import CreateOrderRequest, OrderResponse
 
 
 class OrderService:
@@ -247,10 +245,5 @@ class OrderService:
 ## Verification checklist
 
 - [ ] Mensagem é substantivo snake_case em inglês (`order_created`, não `"Order was created"`).
-- [ ] Nenhuma f-string com dados na mensagem — tudo via `logger.bind(...)`.
-- [ ] Não passou `request_id=` manualmente (vem do contextvar).
-- [ ] Não logou `password`, `token`, `cpf`, `card_*`, etc. inline — campos sensíveis ou estão em `extra` (patcher mascara) ou nem entram no log.
-- [ ] Exceptions usam `logger.exception("event_name")`, não `logger.error(str(e))`.
-- [ ] Não logou e re-lançou a mesma exception.
-- [ ] Não logou `DomainError` antes de raise (handler global faz isso).
 - [ ] Naming consistente com sufixos `_started`/`_finished`/`_failed`/`_succeeded`.
+- [ ] Regras compartilhadas respeitadas — sem f-string com dados, sem `request_id=` manual, sem PII/credenciais inline, `logger.exception` em vez de `error(str(e))`, sem logar-e-reraise nem logar `DomainError` antes de raise ([#logger](../../../docs/architecture/conventions.md#logger)).

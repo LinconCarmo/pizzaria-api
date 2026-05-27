@@ -7,7 +7,7 @@ description: Cria um módulo feature completo em src/modules/<feature>/ seguindo
 
 Use esta skill para fazer scaffold de um novo módulo feature em `src/modules/<feature>/` seguindo o padrão **Layered Modular Monolith** ("NestJS-like" em FastAPI) do pizzaria-api.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seções 3–4). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+> Regras normativas: [conventions.md](../../../docs/architecture/conventions.md). Detalhe/templates: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seções 3–4). Decisões: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md), [ADR 0003](../../../docs/adr/0003-ids-uuid.md), [ADR 0004](../../../docs/adr/0004-naming-com-prefixo-de-entidade.md).
 
 ## Quando usar
 
@@ -38,33 +38,28 @@ Antes de criar qualquer arquivo, valide:
 
 ```
 src/modules/<feature>/
-├── __init__.py                 # vazio (apenas marker de package)
+├── __init__.py                       # vazio (apenas marker de package)
 ├── controllers/
 │   ├── __init__.py
 │   └── v1/
 │       ├── __init__.py
-│       └── <feature>.py        # APIRouter — prefix do recurso, tags, handlers HTTP
-├── router.py                   # agrega controllers/v1/<feature>.py (e futuras versões)
-├── service.py                  # regra de negócio — orquestra repository, lança DomainError
-├── repository.py               # acesso a Prisma — define Protocol + implementação
-├── schema.py                   # DTOs Pydantic v2 — *Request / *Response
-└── dependencies.py             # FastAPI Depends() — wiring repository → service
+│       └── <entity>_controller.py    # APIRouter — prefix do recurso, tags, handlers HTTP
+├── <entity>_router.py                # agrega controllers/v1/<entity>_controller.py (e futuras versões)
+├── <entity>_service.py               # regra de negócio — orquestra repository, lança DomainError
+├── <entity>_repository.py            # acesso a Prisma — define Protocol + implementação
+├── <entity>_schema.py                # DTOs Pydantic v2 — *Request / *Response
+└── <entity>_dependencies.py          # FastAPI Depends() — wiring repository → service
 ```
 
-**Naming**:
+> Regra completa: [conventions.md#estrutura](../../../docs/architecture/conventions.md#estrutura) e [conventions.md#naming](../../../docs/architecture/conventions.md#naming).
 
-- Arquivos curtos, sem prefixo do nome do módulo na raiz. O diretório já dá contexto.
-- O arquivo dentro de `controllers/v1/` é `<feature>.py` (PT recurso, ex.: `orders.py`, `users.py`) — permite, no futuro, adicionar mais controllers na mesma `v1` (ex.: `sessions.py`) sem renomear.
-
-- ✅ `src/modules/orders/controllers/v1/orders.py`
-- ❌ `src/modules/orders/controllers/v1/orders.controller.py`
-- ❌ `src/modules/orders/orders_controller.py`
+**Naming** (resumo): arquivos `snake_case` prefixados pela entidade — diretório plural (`orders`), prefixo singular (`order_service.py`, `controllers/v1/order_controller.py`). Regra completa: [conventions.md#naming](../../../docs/architecture/conventions.md#naming).
 
 **Versionamento de URL**: o prefixo `/api/v1` é aplicado **em [`src/main.py`](../../../src/main.py)** no `include_router`, **não** dentro do controller. O controller declara apenas `prefix="/<feature>"`. Exceção: `/health` é incluído **sem** `prefix=` (probes de infra não devem quebrar entre versões).
 
 ## Templates
 
-Substitua `<feature>` pelo nome em snake_case (ex: `orders`) e `<Feature>` pelo PascalCase singular do recurso (ex: `Order`).
+Substitua `<feature>` pelo nome do módulo em snake_case plural (ex: `orders`), `<entity>` pelo singular usado no prefixo dos arquivos (ex: `order`) e `<Feature>` pelo PascalCase singular do recurso (ex: `Order`). Os nomes de **classe** permanecem PascalCase prefixados (`OrderService`, `OrderRepository`, `CreateOrderRequest`) — só o nome do **arquivo** vira `<entity>_<layer>.py`.
 
 ### `__init__.py`
 
@@ -73,7 +68,7 @@ Substitua `<feature>` pelo nome em snake_case (ex: `orders`) e `<Feature>` pelo 
 
 (arquivo vazio)
 
-### `schema.py`
+### `<entity>_schema.py`
 
 ```python
 from datetime import datetime
@@ -107,7 +102,7 @@ class <Feature>Response(_BaseSchema):
 
 > Se `src/shared/types.py` já tiver um `BaseSchema` reutilizável, importe de lá em vez de redefinir `_BaseSchema`.
 
-### `repository.py`
+### `<entity>_repository.py`
 
 ```python
 from typing import Protocol
@@ -115,45 +110,50 @@ from uuid import UUID
 
 from prisma import Prisma
 
-from src.modules.<feature>.schema import Create<Feature>Request
+from src.modules.<feature>.<entity>_schema import Create<Feature>Request
 
 
 class <Feature>RepositoryProtocol(Protocol):
-    async def create(self, data: Create<Feature>Request) -> dict: ...
-    async def find_by_id(self, <feature>_id: UUID) -> dict | None: ...
-    async def find_many(self) -> list[dict]: ...
+    async def create(self, data: Create<Feature>Request) -> dict[str, object]: ...
+    async def find_by_id(self, <feature>_id: UUID) -> dict[str, object] | None: ...
+    async def find_many(self) -> list[dict[str, object]]: ...
 
 
 class <Feature>Repository:
     def __init__(self, db: Prisma) -> None:
         self._db = db
 
-    async def create(self, data: Create<Feature>Request) -> dict:
-        return await self._db.<feature>.create(
+    async def create(self, data: Create<Feature>Request) -> dict[str, object]:
+        created = await self._db.<feature>.create(
             data={"name": data.name},
         )
+        return created.model_dump()
 
-    async def find_by_id(self, <feature>_id: UUID) -> dict | None:
-        return await self._db.<feature>.find_unique(
+    async def find_by_id(self, <feature>_id: UUID) -> dict[str, object] | None:
+        row = await self._db.<feature>.find_unique(
             where={"id": str(<feature>_id)},
         )
+        return row.model_dump() if row is not None else None
 
-    async def find_many(self) -> list[dict]:
-        return await self._db.<feature>.find_many()
+    async def find_many(self) -> list[dict[str, object]]:
+        rows = await self._db.<feature>.find_many()
+        return [row.model_dump() for row in rows]
 ```
 
-> **UUID → str na borda.** O Prisma client espera `str` em `where={"id": ...}` para colunas `String`. Converter com `str(<feature>_id)` aqui no repository; service e controller seguem com `UUID`.
+> **UUID → str só na borda do repository** (`where={"id": str(<feature>_id)}`); service e controller seguem com `UUID`. Regra: [conventions.md#uuid](../../../docs/architecture/conventions.md#uuid).
+
+> **Use `dict[str, object]`, nunca `dict` puro** — o `mypy --strict` do projeto liga `disallow_any_generics`. Serialize o retorno do Prisma com `.model_dump()` para não devolver `prisma.models.*` (senão o service teria de importar Prisma). Regra: [conventions.md#camadas](../../../docs/architecture/conventions.md#camadas).
 
 > **Regra crítica**: este é o **único** arquivo do módulo que pode importar `prisma`. Service e controller NÃO importam Prisma.
 
-### `service.py`
+### `<entity>_service.py`
 
 ```python
 from uuid import UUID
 
 from src.core.exceptions import NotFoundError
-from src.modules.<feature>.repository import <Feature>RepositoryProtocol
-from src.modules.<feature>.schema import Create<Feature>Request, <Feature>Response
+from src.modules.<feature>.<entity>_repository import <Feature>RepositoryProtocol
+from src.modules.<feature>.<entity>_schema import Create<Feature>Request, <Feature>Response
 
 
 class <Feature>Service:
@@ -179,15 +179,17 @@ class <Feature>Service:
 
 > Service depende do **Protocol** (não da classe concreta), o que facilita mock em testes unitários e mantém a inversão de dependência.
 
-### `dependencies.py`
+> **`model_validate(entity)` direto só funciona quando os nomes batem.** Se o schema usa `@map` (colunas snake_case viram atributos camelCase no Prisma — `isActive`, `createdAt`) ou há relação aninhada (`role` vira `{"name": ...}`), o service precisa **remapear as chaves para snake_case e achatar a relação** num `dict` antes do `model_validate` — sem reimportar Prisma. Ver [modular-monolith.md §5.5](../../../docs/architecture/modular-monolith.md) para o exemplo (`_to_response`).
+
+### `<entity>_dependencies.py`
 
 ```python
 from fastapi import Depends
 from prisma import Prisma
 
 from src.infra.database import db
-from src.modules.<feature>.repository import <Feature>Repository, <Feature>RepositoryProtocol
-from src.modules.<feature>.service import <Feature>Service
+from src.modules.<feature>.<entity>_repository import <Feature>Repository, <Feature>RepositoryProtocol
+from src.modules.<feature>.<entity>_service import <Feature>Service
 
 
 def get_db() -> Prisma:
@@ -206,7 +208,7 @@ def get_<feature>_service(
     return <Feature>Service(repository)
 ```
 
-### `controllers/v1/<feature>.py`
+### `controllers/v1/<entity>_controller.py`
 
 ```python
 from typing import Annotated
@@ -215,9 +217,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from src.core.exceptions import ErrorResponse
-from src.modules.<feature>.dependencies import get_<feature>_service
-from src.modules.<feature>.schema import Create<Feature>Request, <Feature>Response
-from src.modules.<feature>.service import <Feature>Service
+from src.modules.<feature>.<entity>_dependencies import get_<feature>_service
+from src.modules.<feature>.<entity>_schema import Create<Feature>Request, <Feature>Response
+from src.modules.<feature>.<entity>_service import <Feature>Service
 
 router = APIRouter(prefix="/<feature>s", tags=["<Feature>s"])
 
@@ -267,12 +269,12 @@ async def list_<feature>s(
 
 > **Padrão FastAPI moderno**: tipo de retorno via annotation (`-> <Feature>Response`), não `response_model=`. FastAPI ≥ 0.89 gera a mesma OpenAPI a partir da anotação e mantém a tipagem em um lugar só.
 
-### `router.py`
+### `<entity>_router.py`
 
 ```python
 from fastapi import APIRouter
 
-from src.modules.<feature>.controllers.v1.<feature> import router as <feature>_v1
+from src.modules.<feature>.controllers.v1.<entity>_controller import router as <feature>_v1
 
 router = APIRouter()
 router.include_router(<feature>_v1)
@@ -280,7 +282,7 @@ router.include_router(<feature>_v1)
 __all__ = ["router"]
 ```
 
-> `router.py` é o ponto estável importado por `main.py` — futuras `controllers/v2/` entram aqui via `include_router(...)` adicional sem mexer em `main.py`.
+> `<entity>_router.py` é o ponto estável importado por `main.py` — futuras `controllers/v2/` entram aqui via `include_router(...)` adicional sem mexer em `main.py`.
 
 ## Wiring no `src/main.py`
 
@@ -288,26 +290,26 @@ Adicionar dois pontos:
 
 ```python
 # import perto dos outros routers
-from src.modules.<feature>.router import router as <feature>_router
+from src.modules.<feature>.<entity>_router import router as <feature>_router
 
 # include com prefixo de versão (exceção: /health vai SEM prefix=)
 app.include_router(<feature>_router, prefix="/api/v1")
 ```
 
-## Factories para testes (`test/factories/<feature>.py`)
+## Factories para testes (`test/factories/<entity>_factory.py`)
 
-Toda feature nova precisa expor factories para os testes (`pytest-unit` e `pytest-integration` exigem). Criar **junto** com o scaffold do módulo — não deixar para depois. Ver §10 "Factories" em [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md).
+Toda feature nova precisa expor factories (`make_<feature>_row`, `make_<feature>_response`, `make_create_<feature>_request`, `seed_<feature>`) — criar **junto** com o scaffold, keyword-only e sem `Any`. Regra completa: [conventions.md#testes](../../../docs/architecture/conventions.md#testes).
 
-### Template `test/factories/<feature>.py`
+### Template `test/factories/<entity>_factory.py`
 
 ```python
 from datetime import UTC, datetime
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
-from prisma import Prisma
+from prisma import Prisma, types
+from prisma.models import <Feature>
 
-from src.modules.<feature>.schema import (
+from src.modules.<feature>.<entity>_schema import (
     Create<Feature>Request,
     <Feature>Response,
 )
@@ -320,12 +322,14 @@ def make_<feature>_row(
     id: int = 1,
     name: str = "Margherita",
     created_at: datetime = NOW,
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=id,
-        name=name,
-        createdAt=created_at,
-    )
+) -> dict[str, object]:
+    # Espelha o dict bruto do repository (`.model_dump()`), com as chaves no
+    # formato do Prisma (camelCase para colunas `@map`). O service lê chaves de dict.
+    return {
+        "id": id,
+        "name": name,
+        "createdAt": created_at,
+    }
 
 
 def make_create_<feature>_request(
@@ -348,18 +352,22 @@ async def seed_<feature>(
     db: Prisma,
     *,
     name: str = "Margherita",
-    **overrides: Any,
-) -> Any:
-    data: dict[str, Any] = {"name": name, **overrides}
-    return await db.<feature>.create(data=cast(Any, data))
+    **overrides: object,
+) -> <Feature>:
+    data: dict[str, object] = {"name": name, **overrides}
+    # cast para o type concreto do Prisma (nunca `Any`); o spread de **overrides
+    # impede anotar `data` diretamente como types.<Feature>CreateInput.
+    return await db.<feature>.create(data=cast(types.<Feature>CreateInput, data))
 ```
+
+> **Sem `Any`** (resumo): use `object` para kwargs dinâmicos e `cast(types.<Feature>CreateInput, ...)`, nunca `cast(Any, ...)`. `<Feature>` em `-> <Feature>` é `from prisma.models import <Feature>`. Regra completa: [conventions.md#tipos](../../../docs/architecture/conventions.md#tipos).
 
 ### Registrar no barrel `test/factories/__init__.py`
 
 Adicionar as factories no `__init__.py`:
 
 ```python
-from test.factories.<feature> import (
+from test.factories.<entity>_factory import (
     make_create_<feature>_request,
     make_<feature>_response,
     make_<feature>_row,
@@ -371,7 +379,7 @@ E incluir os nomes em `__all__`.
 
 ## Verification
 
-Antes de reportar como pronto, rodar e validar:
+Antes de reportar como pronto, rodar e validar (atalhos `poe` em [conventions.md#comandos](../../../docs/architecture/conventions.md#comandos)):
 
 1. **Imports limpos**: `uv run ruff check src/modules/<feature>/` → 0 erros.
 2. **Typing limpo**: `uv run mypy src/modules/<feature>/` → 0 erros.
@@ -383,24 +391,20 @@ Se o usuário não pediu CRUD completo, ajuste — a skill scaffolda CRUD básic
 
 ## Common pitfalls
 
-- **Importar Prisma em `service.py` ou `controller.py`** — Prisma só em `repository.py`. Quebra inversão de dependência e dificulta mocks.
-- **Usar `@staticmethod` no service** (estilo `HealthService.check()`) — service deve ser instanciado via DI; staticmethod impede mock e injeção.
-- **`HTTPException` no controller** — usar `DomainError` (ou subclasses como `NotFoundError`, `ConflictError`) no service. Handlers globais já estão registrados em `src/main.py`.
-- **Pydantic model único para Request + Response** — sempre separar. Request define o que entra (sem `id`, `created_at`), Response define o que sai (com metadados).
-- **Prefixo no nome do arquivo** (`orders.controller.py`) — usar `controller.py`. O `users/` antigo do projeto usa o padrão NestJS-style; isso é legado e não deve ser replicado.
+- **Camadas / DI / erros / naming / Pydantic** — Prisma só no repository, sem `@staticmethod`, sem `HTTPException` (use `DomainError`), Request ≠ Response, separador `_` no nome do arquivo. Regras: [conventions.md#camadas](../../../docs/architecture/conventions.md#camadas), [#di](../../../docs/architecture/conventions.md#di), [#erros](../../../docs/architecture/conventions.md#erros), [#naming](../../../docs/architecture/conventions.md#naming), [#pydantic](../../../docs/architecture/conventions.md#pydantic).
 - **Esquecer `app.include_router(<feature>_router)` em `src/main.py`** — sem isso o módulo existe mas não responde.
 - **Esquecer `__init__.py`** vazio dentro do módulo — Python 3.13 ainda exige para imports relativos consistentes.
 
 ## Verification checklist (antes de entregar)
 
-- [ ] Diretório `src/modules/<feature>/` criado com layout: `__init__.py`, `router.py`, `service.py`, `repository.py`, `schema.py`, `dependencies.py` + `controllers/__init__.py`, `controllers/v1/__init__.py`, `controllers/v1/<feature>.py`.
-- [ ] Nomes de arquivo **sem** prefixo do módulo na raiz; arquivo em `controllers/v1/` segue o nome do recurso (`<feature>.py`).
-- [ ] `repository.py` é o único arquivo que importa `prisma`.
+- [ ] Diretório `src/modules/<feature>/` criado com layout: `__init__.py`, `<entity>_router.py`, `<entity>_service.py`, `<entity>_repository.py`, `<entity>_schema.py`, `<entity>_dependencies.py` + `controllers/__init__.py`, `controllers/v1/__init__.py`, `controllers/v1/<entity>_controller.py`.
+- [ ] Arquivos em snake_case prefixados pela entidade (`<entity>_<layer>.py`); controller em `controllers/v1/<entity>_controller.py`.
+- [ ] `<entity>_repository.py` é o único arquivo que importa `prisma`.
 - [ ] Service usa `<Feature>RepositoryProtocol`, não a classe concreta.
 - [ ] Nenhum `@staticmethod`, nenhum `HTTPException` no controller.
 - [ ] Schemas separados: `Create<Feature>Request`, `<Feature>Response` (e `Update<Feature>Request` se aplicável).
 - [ ] `src/main.py` inclui o novo `<feature>_router` com `prefix="/api/v1"` (`/health` é exceção).
-- [ ] `test/factories/<feature>.py` criado com `make_<feature>_row`, `make_<feature>_response`, `make_create_<feature>_request`, `async seed_<feature>`.
+- [ ] `test/factories/<entity>_factory.py` criado com `make_<feature>_row`, `make_<feature>_response`, `make_create_<feature>_request`, `async seed_<feature>`.
 - [ ] `test/factories/__init__.py` re-exporta as factories novas e atualiza `__all__`.
 - [ ] `ruff check` e `mypy` limpos.
 - [ ] `/docs` lista as rotas novas sob `/api/v1/...`.

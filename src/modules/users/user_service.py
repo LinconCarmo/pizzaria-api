@@ -1,11 +1,10 @@
 from uuid import UUID
 
-from prisma.models import User
-
-from src.core.exceptions import NotFoundError
+from src.core.exceptions import InternalError, NotFoundError
+from src.core.logger import logger
 from src.core.security import hash_password
-from src.modules.users.repository import UserRepositoryProtocol
-from src.modules.users.schema import (
+from src.modules.users.user_repository import UserRepositoryProtocol
+from src.modules.users.user_schema import (
     CreateUserRequest,
     PaginationMeta,
     UpdateUserRequest,
@@ -75,12 +74,20 @@ class UserService:
 
         await self._repository.soft_delete(user_id)
 
-    def _to_response(self, raw: User) -> UserResponse:
-        return UserResponse(
-            id=UUID(raw.id),
-            email=raw.email,
-            name=raw.name,
-            role=UserRole(raw.role.name) if raw.role is not None else UserRole.CUSTOMER,
-            created_at=raw.createdAt,
-            updated_at=raw.updatedAt,
+    def _to_response(self, raw: dict[str, object]) -> UserResponse:
+        role = raw.get("role")
+        if not isinstance(role, dict):
+            logger.bind(user_id=raw.get("id")).error("user_role_relation_missing")
+            raise InternalError()
+
+        return UserResponse.model_validate(
+            {
+                "id": raw["id"],
+                "email": raw["email"],
+                "name": raw["name"],
+                "role": role["name"],
+                "is_active": raw["isActive"],
+                "created_at": raw["createdAt"],
+                "updated_at": raw["updatedAt"],
+            }
         )

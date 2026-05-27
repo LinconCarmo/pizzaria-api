@@ -1,12 +1,10 @@
 from datetime import UTC, datetime
-from types import SimpleNamespace
-from typing import Any, cast
 from uuid import UUID
 
-from prisma import Prisma
+from prisma import Prisma, types
 from prisma.models import User
 
-from src.modules.users.schema import (
+from src.modules.users.user_schema import (
     CreateUserRequest,
     UpdateUserRequest,
     UserResponse,
@@ -22,22 +20,25 @@ def make_user_row(
     id: UUID = DEFAULT_USER_ID,
     email: str = "ana@example.com",
     name: str = "Ana",
-    role_name: str = "CUSTOMER",
+    role_name: str | None = "CUSTOMER",
+    is_active: bool = True,
     hashed_password: str = "hashed",
     created_at: datetime = NOW,
     updated_at: datetime = NOW,
     deleted_at: datetime | None = None,
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=str(id),
-        email=email,
-        name=name,
-        role=SimpleNamespace(name=role_name),
-        hashedPassword=hashed_password,
-        createdAt=created_at,
-        updatedAt=updated_at,
-        deletedAt=deleted_at,
-    )
+) -> dict[str, object]:
+    role: dict[str, object] | None = {"name": role_name} if role_name is not None else None
+    return {
+        "id": str(id),
+        "email": email,
+        "name": name,
+        "role": role,
+        "isActive": is_active,
+        "hashedPassword": hashed_password,
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+        "deletedAt": deleted_at,
+    }
 
 
 def make_create_user_request(
@@ -50,7 +51,7 @@ def make_create_user_request(
     return CreateUserRequest(email=email, name=name, password=password, role=role)
 
 
-def make_update_user_request(**overrides: Any) -> UpdateUserRequest:
+def make_update_user_request(**overrides: object) -> UpdateUserRequest:
     return UpdateUserRequest(**overrides)
 
 
@@ -60,6 +61,7 @@ def make_user_response(
     email: str = "ana@example.com",
     name: str = "Ana",
     role: UserRole = UserRole.CUSTOMER,
+    is_active: bool = True,
     created_at: datetime = NOW,
     updated_at: datetime = NOW,
 ) -> UserResponse:
@@ -68,6 +70,7 @@ def make_user_response(
         email=email,
         name=name,
         role=role,
+        is_active=is_active,
         created_at=created_at,
         updated_at=updated_at,
     )
@@ -80,13 +83,11 @@ async def seed_user(
     name: str = "Default User",
     hashed_password: str = "hashed",
     role: str = "CUSTOMER",
-    **overrides: Any,
 ) -> User:
-    data: dict[str, Any] = {
+    data: types.UserCreateInput = {
         "email": email,
         "name": name,
         "hashedPassword": hashed_password,
         "role": {"connect": {"name": role}},
-        **overrides,
     }
-    return await db.user.create(data=cast(Any, data))
+    return await db.user.create(data=data)

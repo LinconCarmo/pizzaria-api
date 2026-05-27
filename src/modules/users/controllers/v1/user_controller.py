@@ -4,15 +4,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from src.core.exceptions import ErrorResponse
-from src.modules.users.dependencies import get_user_service
-from src.modules.users.schema import (
+from src.modules.users.user_dependencies import get_user_service
+from src.modules.users.user_schema import (
     CreateUserRequest,
     UpdateUserRequest,
     UserListResponse,
     UserResponse,
     UserRole,
 )
-from src.modules.users.service import UserService
+from src.modules.users.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

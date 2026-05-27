@@ -1,13 +1,13 @@
 ---
 name: pydantic-schema
-description: Cria schemas Pydantic v2 (Request/Response DTOs) em src/modules/<feature>/schema.py com validação, exemplos OpenAPI e separação clara entre input e output. Use quando o usuário pedir "criar schema X", "DTO de entrada/saída", "validação Pydantic para Y", "modelo de request/response", ou quando precisar adicionar/refatorar tipos em um schema existente.
+description: Cria schemas Pydantic v2 (Request/Response DTOs) em src/modules/<feature>/<entity>_schema.py com validação, exemplos OpenAPI e separação clara entre input e output. Use quando o usuário pedir "criar schema X", "DTO de entrada/saída", "validação Pydantic para Y", "modelo de request/response", ou quando precisar adicionar/refatorar tipos em um schema existente.
 ---
 
 # Pydantic Schema Skill
 
-Use esta skill para criar ou modificar DTOs Pydantic v2 dentro de `src/modules/<feature>/schema.py`, seguindo as convenções do pizzaria-api.
+Use esta skill para criar ou modificar DTOs Pydantic v2 dentro de `src/modules/<feature>/<entity>_schema.py`, seguindo as convenções do pizzaria-api.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção 4 — Schema). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+> Referência — regras normativas: [conventions.md](../../../docs/architecture/conventions.md) ([#pydantic](../../../docs/architecture/conventions.md#pydantic), [#uuid](../../../docs/architecture/conventions.md#uuid)). Detalhe: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seção 4 — Schema). Decisões: [ADRs](../../../docs/adr/).
 
 ## Quando usar
 
@@ -19,14 +19,16 @@ Use esta skill para criar ou modificar DTOs Pydantic v2 dentro de `src/modules/<
 
 ## Quando NÃO usar
 
-- Criar módulo inteiro do zero → `create-module` (já gera o `schema.py` inicial).
+- Criar módulo inteiro do zero → `create-module` (já gera o `<entity>_schema.py` inicial).
 - Schema vai em `src/shared/types.py` por ser cross-module → editar diretamente, esta skill é por feature.
 
 ## Princípios
 
+> Regras normativas (Request/Response separados, naming, money=`Decimal`, IDs=`uuid.UUID`, não expor campos sensíveis): [conventions.md#pydantic](../../../docs/architecture/conventions.md#pydantic) e [#uuid](../../../docs/architecture/conventions.md#uuid). Abaixo, o **como** aplicar.
+
 ### 1. Request e Response **sempre separados**
 
-Nunca usar o mesmo modelo Pydantic para input e output. Um Request **nunca tem** `id`, `created_at`, `updated_at`; um Response **sempre tem**.
+Regra: [#pydantic](../../../docs/architecture/conventions.md#pydantic). Na prática: um Request **nunca tem** `id`/`created_at`/`updated_at`; um Response **sempre tem**.
 
 ```python
 # ❌ ERRADO
@@ -62,6 +64,8 @@ async def get(id: int) -> OrderResponse:
 ```
 
 ### 3. Naming
+
+Convenção normativa de nomes de classe em [#pydantic](../../../docs/architecture/conventions.md#pydantic). Mapa de casos:
 
 | Tipo | Padrão | Exemplo |
 |---|---|---|
@@ -278,11 +282,11 @@ class CreatePromotionRequest(BaseModel):
 | Telefone BR | `str` + validator com regex | `Field(..., pattern=r"^\+?55\d{10,11}$")` |
 | CPF | `str` + validator (não usar `int` — perde zeros à esquerda) | validator dedicado |
 
-> Para Money: **sempre `Decimal`**, nunca `float`. Float trunca centavos.
+> Money é `Decimal` e IDs são `uuid.UUID` por norma — ver [#pydantic](../../../docs/architecture/conventions.md#pydantic) e [#uuid](../../../docs/architecture/conventions.md#uuid). Float trunca centavos.
 
 ## Enums
 
-Definir no próprio `schema.py` se for específico do módulo. Se for cross-module, em `src/shared/types.py`.
+Definir no próprio `<entity>_schema.py` se for específico do módulo. Se for cross-module, em `src/shared/types.py`.
 
 ```python
 from enum import Enum
@@ -312,13 +316,13 @@ class CreateOrderRequest(BaseModel):
     items: list[CreateOrderItemRequest] = Field(..., min_length=1)
 ```
 
-> **IDs (PKs e FKs) são `uuid.UUID`** — ver [ADR 0003](../../../docs/adr/0003-ids-uuid.md). Pydantic valida formato automaticamente; o Swagger expõe como `string($uuid)`.
+> **IDs (PKs e FKs) são `uuid.UUID`** — regra em [#uuid](../../../docs/architecture/conventions.md#uuid). Pydantic valida formato automaticamente; o Swagger expõe como `string($uuid)`.
 
 Pydantic v2 resolve forward references — se houver ciclo, usar string (`"CreateOrderItemRequest"`) e chamar `model_rebuild()` no final do módulo.
 
 ## Não expor
 
-Nunca colocar em Response:
+Não expor campos sensíveis em `*Response` é regra normativa ([#pydantic](../../../docs/architecture/conventions.md#pydantic)). Casos concretos a vigiar:
 - Hash de senha (`password_hash`)
 - Tokens (`access_token`, `refresh_token` — exceto no endpoint de login)
 - Campos internos de auditoria que não interessam ao cliente (`internal_notes`, `migration_marker`)
@@ -338,8 +342,8 @@ async def get(self, id: int) -> OrderResponse:
 
 ## Verification
 
-1. `uv run ruff check src/modules/<feature>/schema.py` → 0 erros.
-2. `uv run mypy src/modules/<feature>/schema.py` → 0 erros.
+1. `uv run ruff check src/modules/<feature>/<entity>_schema.py` → 0 erros.
+2. `uv run mypy src/modules/<feature>/<entity>_schema.py` → 0 erros.
 3. Abrir `/docs` e conferir:
    - Schema aparece com nome correto.
    - Campos têm `description` e `examples` visíveis.

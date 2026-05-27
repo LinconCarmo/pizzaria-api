@@ -1,12 +1,3 @@
-/*
-  Warnings:
-
-  - You are about to drop the column `hashed_password` on the `users` table. All the data in the column will be lost.
-  - You are about to drop the column `role` on the `users` table. All the data in the column will be lost.
-  - Added the required column `password_hash` to the `users` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `role_id` to the `users` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- DropIndex
 DROP INDEX `users_deleted_at_idx` ON `users`;
 
@@ -21,6 +12,7 @@ ALTER TABLE `users` DROP COLUMN `hashed_password`,
     ADD COLUMN `role_id` CHAR(36) NOT NULL;
 
 -- CreateTable
+
 CREATE TABLE `roles` (
     `id` CHAR(36) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
@@ -33,6 +25,7 @@ CREATE TABLE `roles` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+
 CREATE TABLE `permissions` (
     `id` CHAR(36) NOT NULL,
     `code` VARCHAR(191) NOT NULL,
@@ -45,6 +38,7 @@ CREATE TABLE `permissions` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+
 CREATE TABLE `role_permissions` (
     `role_id` CHAR(36) NOT NULL,
     `permission_id` CHAR(36) NOT NULL,

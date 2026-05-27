@@ -1,7 +1,10 @@
 import sys
 from collections.abc import Mapping
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any
+from typing import (
+    TYPE_CHECKING,
+    Any,  # noqa: TID251 -- `_redact` percorre valores de log de tipo arbitrário
+)
 
 from loguru import logger as _logger
 

@@ -1,4 +1,6 @@
-from typing import Any
+from typing import (
+    Any,  # noqa: TID251 -- `details` carrega payload de erro arbitrário (JSON-serializável)
+)
 
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
@@ -70,6 +72,17 @@ class UnauthorizedError(DomainError):
             message=message,
             code="UNAUTHORIZED",
             status_code=401,
+        )
+
+
+class InternalError(DomainError):
+    """Invariante de servidor violada (bug/integridade), não erro do cliente."""
+
+    def __init__(self, message: str = "Internal error") -> None:
+        super().__init__(
+            message=message,
+            code="INTERNAL_ERROR",
+            status_code=500,
         )
 
 

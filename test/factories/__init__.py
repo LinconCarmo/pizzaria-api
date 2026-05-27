@@ -1,4 +1,4 @@
-from test.factories.users import (
+from test.factories.user_factory import (
     NOW,
     make_create_user_request,
     make_update_user_request,

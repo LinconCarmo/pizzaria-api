@@ -4,7 +4,7 @@
 - **Data:** 2026-05-20
 - **Autor:** Martin Morães
 - **Supersede:** —
-- **Superseded by:** —
+- **Superseded by:** [ADR 0004](0004-naming-com-prefixo-de-entidade.md) (apenas quanto ao **naming de arquivos** — o padrão arquitetural em si permanece em vigor)
 
 ## Contexto
 
@@ -22,8 +22,8 @@ Adotamos **Modular Monolith em Camadas (layout flat por módulo)** como padrão 
 Em resumo:
 
 - Código fica em `src/modules/<feature>/`, **um pacote por bounded context**.
-- Cada módulo tem **7 arquivos em layout flat** (sem subpastas):
-  - `__init__.py`, `router.py`, `controller.py`, `service.py`, `repository.py`, `schema.py`, `dependencies.py`.
+- Cada módulo tem ~7 arquivos por camada.
+  - > **Nota (2026-05-27):** o naming registrado neste ADR (`controller.py`, `service.py` … em layout flat sem prefixo) foi **superseded pelo [ADR 0004](0004-naming-com-prefixo-de-entidade.md)** — arquivos passaram a usar `snake_case` prefixado pela entidade (`user_service.py`, `controllers/v1/user_controller.py`). A divisão em camadas e a direção de dependência abaixo permanecem válidas.
 - **Direção de dependência interna**: `controller → service → repository`. Schema é transversal.
 - **Repository é o único arquivo que importa Prisma**; service depende de `<X>RepositoryProtocol`.
 - **Comunicação entre módulos** via `Protocol` importado do módulo dono (chamada direta tipada), RabbitMQ (assíncrono) ou cache via Redis.

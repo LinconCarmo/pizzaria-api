@@ -7,7 +7,7 @@ description: Escolher o nível correto de log (DEBUG/INFO/WARNING/ERROR/CRITICAL
 
 Use esta skill para escolher o nível de log apropriado em cada chamada. **Formato da mensagem e contexto estruturado** ficam na skill `logger-message-structure`. **Configuração de ambiente e performance** ficam na skill `logger-config-performance`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção "Logging"). Decisão: [ADR 0002](../../../docs/adr/0002-padroes-de-logging.md). Configuração: [`src/core/logger.py`](../../../src/core/logger.py).
+> Referência — regras normativas: [conventions.md#logger](../../../docs/architecture/conventions.md#logger). Detalhe: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seção "Logging"). Decisão: [ADR 0002](../../../docs/adr/0002-padroes-de-logging.md). Configuração: [`src/core/logger.py`](../../../src/core/logger.py).
 
 ## Quando usar
 
@@ -53,8 +53,8 @@ Use esta skill para escolher o nível de log apropriado em cada chamada. **Forma
 
 - **INFO** para eventos de negócio: `order_created`, `payment_captured`, `user_promoted_to_admin`.
 - **WARNING** para falhas recuperadas: retry bem-sucedido, fallback para gateway secundário, default aplicado para config ausente.
-- **ERROR não** para `DomainError` que o service lança (`NotFoundError`, `ConflictError`, `ValidationError`) — isso é fluxo esperado e o handler global já loga no nível apropriado. Logar a `DomainError` no service além disso duplica.
-- **Não** logar e re-raise a mesma exception. Ou loga e trata, ou deixa subir.
+- **ERROR não** para `DomainError` (`NotFoundError`, `ConflictError`, `ValidationError`): é fluxo esperado, não nível de erro — escolha de nível decorre da regra de não logar `DomainError` ([#logger](../../../docs/architecture/conventions.md#logger)).
+- Não logar-e-reraise a mesma exception ([#logger](../../../docs/architecture/conventions.md#logger)).
 
 ### Repository
 
@@ -72,17 +72,17 @@ Use esta skill para escolher o nível de log apropriado em cada chamada. **Forma
 
 - **ERROR para validação de input do usuário.** `RequestValidationError` (422) e `ValidationError` de domínio (422) são **comportamento esperado**, não falha do sistema. Use **INFO** ou **WARNING** se quiser registrar a tentativa. ERROR aqui polui dashboards e gera alertas falsos.
 - **Logar tudo em DEBUG e em INFO "por garantia".** Vira ruído e duplicação. Escolha um nível e mantenha.
-- **`logger.error(str(e))`** em vez de `logger.exception("event_name")`. A primeira forma perde o traceback.
+- **`logger.error(str(e))`** em vez de `logger.exception("event_name")` (perde traceback) — ver [#logger](../../../docs/architecture/conventions.md#logger).
 - **Logar dentro de loops apertados sem rate limit** (`for item in 10_000_items: logger.info(...)`). Em INFO, vira gigabytes; em DEBUG, mata performance. Agregue ou amostre — ver `logger-config-performance`.
 - **CRITICAL para tudo que "parece grave".** Reserve para `app não pode continuar`. Se o request pode falhar e o próximo pode passar, é `ERROR`, não `CRITICAL`.
-- **Logar e re-raise a mesma exception.** Causa logs duplicados (você + handler global). Escolha um lado.
+- **Logar e re-raise a mesma exception.** Logs duplicados (você + handler global); escolha um lado — ver [#logger](../../../docs/architecture/conventions.md#logger).
 
 ## Exemplos contextualizados
 
 ### ✅ Bom
 
 ```python
-# src/modules/orders/service.py
+# src/modules/orders/order_service.py
 class OrderService:
     async def create(self, data: CreateOrderRequest) -> OrderResponse:
         order = await self._repository.create(data)
@@ -130,7 +130,6 @@ for item in items:
 
 - [ ] Cada `logger.X(...)` tem nível justificável pela tabela acima.
 - [ ] Não há `logger.error` para validação de input ou `DomainError` esperada.
-- [ ] Exceptions usam `logger.exception("event_name")`, não `logger.error(str(e))`.
-- [ ] Não há "log e re-raise" — ou loga e trata, ou deixa subir.
+- [ ] Regras compartilhadas de `exception` vs `error(str(e))` e "não logar-e-reraise" respeitadas ([#logger](../../../docs/architecture/conventions.md#logger)).
 - [ ] Loops apertados não logam por iteração sem amostragem.
 - [ ] CRITICAL apenas em falhas de inicialização ou estado fatal.

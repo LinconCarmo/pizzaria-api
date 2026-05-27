@@ -7,7 +7,7 @@ description: Cria testes unitários com pytest no pizzaria-api seguindo AAA, moc
 
 Use esta skill para criar testes **unitários** (sem I/O externo) com pytest no pizzaria-api. Para testes que precisam do banco real, use a skill `pytest-integration`.
 
-> Referência arquitetural: [`docs/architecture/modular-monolith.md`](../../../docs/architecture/modular-monolith.md) (seção 10 — Testes). Decisão: [ADR 0001](../../../docs/adr/0001-adotar-modular-monolith-em-camadas.md).
+> Referência — regras normativas: [conventions.md#testes](../../../docs/architecture/conventions.md#testes). Detalhe: [modular-monolith.md](../../../docs/architecture/modular-monolith.md) (seção 10 — Testes). Decisões: [ADRs](../../../docs/adr/).
 
 ## Quando usar
 
@@ -51,16 +51,16 @@ Antes de escrever os testes, garantir:
 
 ## File placement e naming
 
-- **Path**: `test/unit/<mirror-do-src>/test_<basename>.py` — espelhando o caminho do source.
+Naming/espelhamento de path são normativos ([#testes](../../../docs/architecture/conventions.md#testes)): teste em `test/unit/<mirror>/test_<entity>_<layer>.py`, espelhando caminho e nome do source. Mapa concreto:
 
   | Source | Teste |
   |---|---|
-  | `src/modules/orders/service.py` | `test/unit/modules/orders/test_service.py` |
-  | `src/modules/orders/repository.py` | `test/unit/modules/orders/test_repository.py` |
+  | `src/modules/orders/order_service.py` | `test/unit/modules/orders/test_order_service.py` |
+  | `src/modules/orders/order_repository.py` | `test/unit/modules/orders/test_order_repository.py` |
   | `src/core/exceptions.py` | `test/unit/core/test_exceptions.py` |
   | `src/shared/utils.py` | `test/unit/shared/test_utils.py` |
 
-- **Filename**: `test_<basename>.py` (pytest exige prefixo `test_`). Sem `_unit_`, `_spec_`, etc.
+- **Filename**: prefixo `test_` (exigência do pytest), sem `_unit_`/`_spec_`.
 - **Um arquivo de teste por arquivo de source**. Múltiplos `class TestX:` se for útil agrupar.
 
 ## Estrutura obrigatória de cada teste
@@ -77,14 +77,14 @@ import pytest
 
 # local — SUT e tipos
 from src.core.exceptions import NotFoundError
-from src.modules.orders.repository import OrderRepositoryProtocol
-from src.modules.orders.schema import CreateOrderRequest, OrderResponse
-from src.modules.orders.service import OrderService
+from src.modules.orders.order_repository import OrderRepositoryProtocol
+from src.modules.orders.order_schema import CreateOrderRequest, OrderResponse
+from src.modules.orders.order_service import OrderService
 ```
 
 ### 2. Constantes hoisted (sem magic values)
 
-IDs são `UUID` (ver [ADR 0003](../../../docs/adr/0003-ids-uuid.md)). Para legibilidade, hoistar UUIDs determinísticos no topo do arquivo de teste — preferir `0000...-0001`, `0000...-0042` etc. para preservar a referência mental do "id 1, id 42" sem perder a tipagem forte.
+IDs são `uuid.UUID` ([#uuid](../../../docs/architecture/conventions.md#uuid)). Para legibilidade, hoistar UUIDs determinísticos no topo do arquivo de teste — preferir `0000...-0001`, `0000...-0042` etc. para preservar a referência mental do "id 1, id 42" sem perder a tipagem forte.
 
 ```python
 from uuid import UUID
@@ -99,10 +99,10 @@ Para casos onde o ID é só "qualquer um" (ex.: gerar 20 entidades distintas), u
 
 ### 3. Fixtures e factories
 
-**Dados de domínio (rows Prisma, DTOs Pydantic) vêm de `test/factories/<feature>.py`** — nunca redefinir helpers locais `_raw_*`, `_user_response`, `_make_<entity>` quando a factory existe. Ver §10 do `modular-monolith.md` ("Factories para mocks e dados de teste").
+**Dados de domínio (rows Prisma, DTOs Pydantic) vêm de `test/factories/<entity>_factory.py`** — nunca redefinir helpers locais `_raw_*`, `_user_response`, `_make_<entity>` quando a factory existe (regra: [#testes](../../../docs/architecture/conventions.md#testes)).
 
 ```python
-from test.factories.orders import make_order_row, make_create_order_request
+from test.factories.order_factory import make_order_row, make_create_order_request
 ```
 
 Fixtures locais ficam reservadas para **wiring de SUT + mocks** (não-dados):
@@ -132,7 +132,7 @@ def order_row() -> SimpleNamespace:
     return make_order_row()
 ```
 
-> **Sempre usar `spec=<Protocol>` ou `spec=<Class>`**. Mock sem `spec` aceita qualquer atributo e dá falso-positivo quando o código chama método inexistente.
+> **Sempre `spec=<Protocol|Class>`** ([#testes](../../../docs/architecture/conventions.md#testes)): mock sem `spec` aceita qualquer atributo e dá falso-positivo quando o código chama método inexistente.
 
 ### 4. Testes (AAA)
 
@@ -166,15 +166,7 @@ class TestOrderService:
             order_repository.find_by_id.assert_awaited_once_with(NON_EXISTENT_ID)
 ```
 
-**Regras AAA**:
-- Arrange (configurar mocks, dados)
-- (linha em branco)
-- Act (chamar o SUT — uma linha, se possível)
-- (linha em branco)
-- Assert (verificar resultado **e** interações)
-- Cada `test_*` ≤ ~15 linhas. Se passar, extrair builder de fixture.
-
-**Naming**: `test_<verb>_<expected>_when_<condition>`. Em inglês. Descritivo.
+**AAA e naming** (`test_<verb>_<expected>_when_<condition>`, blocos separados por linha em branco, `test_*` ≤ ~15 linhas) são normativos — ver [#testes](../../../docs/architecture/conventions.md#testes). Aqui o Act chama o SUT (1 linha quando possível) e o Assert verifica resultado **e** interações; se estourar 15 linhas, extrair builder de fixture.
 
 ## Mocks tipados
 
@@ -183,8 +175,8 @@ class TestOrderService:
 ```python
 from unittest.mock import MagicMock
 
-from src.modules.orders.repository import OrderRepositoryProtocol
-from test.factories.orders import make_order_row
+from src.modules.orders.order_repository import OrderRepositoryProtocol
+from test.factories.order_factory import make_order_row
 
 
 repository = MagicMock(spec=OrderRepositoryProtocol)
@@ -194,7 +186,7 @@ repository.find_by_id = AsyncMock(return_value=make_order_row())
 DTOs Pydantic no Arrange também vêm da factory — não instanciar `CreateOrderRequest(...)` inline com payload "feliz":
 
 ```python
-from test.factories.orders import make_create_order_request
+from test.factories.order_factory import make_create_order_request
 
 data = make_create_order_request(customer_id=42)
 result = await service.create(data)
@@ -268,7 +260,7 @@ Duas opções equivalentes — escolher a mais legível:
 import pytest
 from pydantic import ValidationError
 
-from src.modules.orders.schema import CreateOrderRequest
+from src.modules.orders.order_schema import CreateOrderRequest
 
 
 def test_create_order_request_rejects_empty_items() -> None:
@@ -305,8 +297,9 @@ async def test_something() -> None:
 
 ## Typing discipline
 
-- **Nunca `Any`**. Anotar tipos de fixtures (`-> MagicMock`, `-> OrderService`).
-- **Cast explícito**: `cast(OrderRepositoryProtocol, mock)` quando mypy reclamar.
+`Any` é banido ([#tipos](../../../docs/architecture/conventions.md#tipos)) e mocks tipados/`spec=` são normativos ([#testes](../../../docs/architecture/conventions.md#testes)). Específico desta skill:
+
+- Anotar tipos de fixtures (`-> MagicMock`, `-> OrderService`); `cast(OrderRepositoryProtocol, mock)` quando mypy reclamar.
 - **`AsyncMock` para coroutines**, `MagicMock` para sync. Métodos individuais async em um `MagicMock(spec=...)`: atribuir `mock.method = AsyncMock(...)`.
 
 ## Gates antes de entregar
@@ -329,14 +322,14 @@ Executar em ordem:
 - **Mock retornando objeto Pydantic em `find_*`** — repository retorna dict (Prisma result), não Pydantic. Manter o mock fiel ao contrato real.
 - **`asyncio.run(...)` dentro de teste** — quebra pytest-asyncio. Use `async def` + auto-mode.
 - **Testar implementação vs comportamento** — focar em "dado input X, service retorna Y / lança Z". Evitar verificar a ordem exata de chamadas internas a menos que faça parte do contrato.
-- **Helper local `_raw_*` / `_make_<entity>` duplicando factory existente** — toda entidade de domínio tem (ou deve ter) factory em `test/factories/<feature>.py`. Importar do barrel `from test.factories import make_<entity>_*` em vez de redefinir.
+- **Helper local `_raw_*` / `_make_<entity>` duplicando factory existente** — toda entidade de domínio tem (ou deve ter) factory em `test/factories/<entity>_factory.py`. Importar do barrel `from test.factories import make_<entity>_*` em vez de redefinir.
 
 ## Verification checklist (antes de entregar)
 
-- [ ] Arquivo em `test/unit/<mirror>/test_<basename>.py`, espelhando `src/`.
+- [ ] Arquivo em `test/unit/<mirror>/test_<entity>_<layer>.py`, espelhando `src/`.
 - [ ] `class TestX` agrupando, `class TestX.TestMethod` para sub-grupos por método.
 - [ ] Toda fixture e mock tem tipo anotado e usa `spec=`.
-- [ ] Mocks/DTOs de entidades de domínio criados via factory (`test/factories/<feature>.py`), não helpers locais `_raw_*`/`_make_<entity>`.
+- [ ] Mocks/DTOs de entidades de domínio criados via factory (`test/factories/<entity>_factory.py`), não helpers locais `_raw_*`/`_make_<entity>`.
 - [ ] AAA com linhas em branco; cada `test_*` ≤ 15 linhas.
 - [ ] Magic values hoisted como constantes no topo.
 - [ ] Nenhum `Any`; nenhum `Mock()` sem `spec`; nenhum `patch` substituível por injeção.

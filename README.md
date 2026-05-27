@@ -40,7 +40,9 @@ uv sync
 docker compose up -d
 
 # Banco
-uv run poe prisma-migrate-create
+uv run poe prisma-migrate-create   # gera a migration (--create-only)
+uv run poe prisma-migrate-run       # aplica as migrations pendentes
+uv run poe prisma-seed              # semeia os roles padrão (idempotente)
 
 # Dev server
 uv run poe start-dev
@@ -50,24 +52,9 @@ Após `start-dev`, Swagger/OpenAPI disponível em <http://127.0.0.1:8000/docs>.
 
 ## Comandos do dia-a-dia
 
-Tasks definidas em [`pyproject.toml`](pyproject.toml) (`[tool.poe.tasks]`). Executar com `uv run poe <task>`.
+Tasks definidas em [`pyproject.toml`](pyproject.toml) (`[tool.poe.tasks]`). Executar com `uv run poe <task>`. Mais usados: `poe lint`, `poe format`, `poe type-check`, `poe test`, `poe test-integration`, `poe ci`.
 
-| Intent                     | Comando                                            |
-| -------------------------- | -------------------------------------------------- |
-| Lint                       | `poe lint`                                         |
-| Format (aplica)            | `poe format`                                       |
-| Format (check)             | `poe format-check`                                 |
-| Type-check                 | `poe type-check`                                   |
-| Testes unitários           | `poe test` (alias: `poe test-unit`)                |
-| Testes de integração       | `poe test-integration`                             |
-| Cobertura                  | `poe test-cov`                                     |
-| Prisma - formatar shcema   | `poe prisma-format`                                |
-| Prisma — gerar client      | `poe prisma-generate`                              |
-| Prisma — migrar (dev)      | `poe prisma-migrate-create`                        |
-| Prisma — deploy migrations | `poe prisma-deploy`                                |
-| Dev server                 | `poe start-dev`                                    |
-| Pipeline local             | `poe ci` (lint → format-check → type-check → test) |
-| Instalar pre-commit        | `poe pre-commit-install`                           |
+**Tabela completa**: [`docs/architecture/conventions.md#comandos`](docs/architecture/conventions.md#comandos).
 
 ## Infraestrutura local
 
@@ -109,7 +96,6 @@ src/
 │   ├── health/
 │   └── users/
 ├── shared/            # utils e tipos compartilhados
-├── app.module.py
 └── main.py
 
 test/
@@ -118,21 +104,22 @@ test/
 └── factories/         # builders compartilhados (make_*, seed_*)
 ```
 
-Cada módulo em `src/modules/<feature>/` segue o layout:
+Cada módulo em `src/modules/<feature>/` segue o layout (arquivos em **`snake_case` prefixados pela entidade** singular `<entity>`; controller versionado em `controllers/v1/`):
 
 ```text
-__init__.py | router.py | controller.py | service.py | repository.py | schema.py | dependencies.py
+__init__.py | <entity>_router.py | controllers/v1/<entity>_controller.py | <entity>_service.py | <entity>_repository.py | <entity>_schema.py | <entity>_dependencies.py
 ```
 
-**Detalhes completos (camadas, DI, erros, persistência, testes, armadilhas)**: ver [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md).
+Ex. concreto (`users`): `user_service.py`, `user_repository.py`, `controllers/v1/user_controller.py`. Regra de naming/estrutura: [`conventions.md#naming`](docs/architecture/conventions.md#naming) · [`#estrutura`](docs/architecture/conventions.md#estrutura) (decisão em [ADR 0004](docs/adr/0004-naming-com-prefixo-de-entidade.md)).
+
+**Regras normativas**: [`docs/architecture/conventions.md`](docs/architecture/conventions.md). **Detalhes (camadas, DI, erros, persistência, testes, armadilhas)**: [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md).
 
 ## Documentação adicional
 
 - [`AGENTS.md`](AGENTS.md) — convenções para coding agents (vendor-neutro, padrão [agents.md](https://agents.md/)).
-- [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md) — guideline arquitetural completo.
+- [`docs/architecture/conventions.md`](docs/architecture/conventions.md) — regras normativas (fonte única).
+- [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md) — guideline arquitetural completo (detalhamento).
 - [`docs/adr/`](docs/adr/) — decisões arquiteturais (ADRs).
-
-
 
 ##Authentication Structure
 
@@ -141,16 +128,19 @@ This project implements a Role-Based Access Control (RBAC) structure using Prism
 ### Implemented Models
 
 #### User
+
 Stores authentication credentials and profile information.
 
 - Unique field: `email`
 
 #### Role
+
 Defines user roles within the system.
 
 - Unique field: `name`
 
 #### Permission
+
 Defines granular system permissions.
 
 - Unique field: `code`
@@ -162,30 +152,3 @@ Defines granular system permissions.
 - A `User` belongs to one `Role`
 - A `Role` can have multiple `Permissions`
 - A `Permission` can belong to multiple `Roles`
-
----
-
-### Database Features
-
-- Prisma ORM integration
-- MySQL database support
-- Prisma migrations
-- Automatic timestamps:
-  - `created_at`
-  - `updated_at`
-
----
-
-### Migration
-
-```bash
-prisma migrate dev --name add_auth_models
-```
-
----
-
-### Prisma Client
-
-```bash
-prisma generate
-```
