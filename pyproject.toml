@@ -110,7 +110,7 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["passlib.*", "prisma.*","jose.*", "uvicorn"]
+module = ["passlib.*", "prisma.*", "uvicorn"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

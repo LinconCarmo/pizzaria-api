@@ -22,12 +22,12 @@ def create_access_token(sub: str, role: str, exp_min: int = 15) -> str:
 
     payload = {"sub": sub, "role": role, "exp": datetime.now(UTC) + timedelta(minutes=exp_min)}
 
-    return cast(str, jwt.encode(payload, settings.jwt_secret, algorithm="HS256"))
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
 def create_refresh_token(sub: str, exp_days: int = 7) -> str:
     payload = {"sub": sub, "exp": datetime.now(UTC) + timedelta(days=exp_days)}
-    return cast(str, jwt.encode(payload, settings.jwt_secret, algorithm="HS256"))
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
 def decode_token(token: str) -> dict[str, object]:
