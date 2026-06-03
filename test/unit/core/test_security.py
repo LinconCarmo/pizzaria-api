@@ -1,4 +1,7 @@
-from src.core.security import hash_password, verify_password
+import pytest
+
+from src.core.exceptions import UnauthorizedError
+from src.core.security import create_access_token, decode_token, hash_password, verify_password
 
 
 def test_hash_password_returns_non_empty_string():
@@ -37,3 +40,22 @@ def test_verify_password_returns_false_for_empty_plain():
     hashed = hash_password("notempty")
 
     assert verify_password("", hashed) is False
+
+
+def test_decode_valid_token():
+    token = create_access_token(sub="123", role="admin")
+    payload = decode_token(token)
+
+    assert payload["sub"] == "123"
+    assert payload["role"] == "admin"
+
+
+def test_decode_invalid_token():
+    with pytest.raises(UnauthorizedError):
+        decode_token("teste")
+
+
+def test_decode_expired_token():
+    token = create_access_token(sub="123", role="admin", exp_min=-1)
+    with pytest.raises(UnauthorizedError):
+        decode_token(token)
