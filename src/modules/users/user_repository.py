@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID
 
 from prisma import Prisma, types
@@ -67,7 +67,7 @@ class UserRepository:
             created = await self._db.user.create(data=data, include=include)
         except UniqueViolationError as exc:
             raise ConflictError(f"User with email {email} already exists") from exc
-        return created.model_dump()
+        return cast(dict[str, object], created.model_dump())
 
     async def get_by_id(self, user_id: UUID) -> dict[str, object] | None:
         where: types.UserWhereInput = {"id": str(user_id), "deletedAt": None}
@@ -135,7 +135,7 @@ class UserRepository:
             raise ConflictError("Email already in use") from exc
         if row is None:
             raise NotFoundError(f"User {user_id} not found")
-        return row.model_dump()
+        return cast(dict[str, object], row.model_dump())
 
     async def soft_delete(self, user_id: UUID) -> None:
         data: types.UserUpdateInput = {"deletedAt": datetime.now(UTC)}

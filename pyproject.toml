@@ -10,10 +10,11 @@ dependencies = [
     "httpx>=0.28.1",
     "loguru>=0.7.3",
     "bcrypt>=4.0,<5.0",
-    "passlib[bcrypt]>=1.7.4",
+    "passlib[argon2,bcrypt]>=1.7.4",
     "prisma>=0.15.0",
     "pydantic-settings>=2.14.1",
     "pytest>=9.0.3",
+    "python-jose[cryptography]>=3.5.0",
 ]
 
 [dependency-groups]
@@ -26,6 +27,8 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.15.12",
     "testcontainers[mysql]",
+    "types-python-jose>=3.5.0.20260408",
+
 ]
 
 [tool.poe.tasks]
@@ -107,7 +110,7 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["passlib.*", "prisma.*"]
+module = ["passlib.*", "prisma.*", "uvicorn"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

@@ -25,5 +25,8 @@ repos:
           - pydantic-settings>=2.0
           - fastapi>=0.110
           - loguru>=0.7.3
+          - python-jose[cryptography]>=3.5.0
+          - types-python-jose>=3.5.0.20260408
+          - passlib[argon2,bcrypt]>=1.7.4
         args: [--config-file=pyproject.toml]
         files: ^src/
