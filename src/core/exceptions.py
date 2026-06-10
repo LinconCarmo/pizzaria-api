@@ -137,3 +137,12 @@ async def generic_exception_handler(
             }
         },
     )
+
+
+class ForbiddenError(DomainError):
+    def __init__(self, message: str = "Forbidden") -> None:
+        super().__init__(
+            message=message,
+            code="FORBIDDEN",
+            status_code=403,
+        )
