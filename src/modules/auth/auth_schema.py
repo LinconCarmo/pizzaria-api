@@ -8,6 +8,10 @@ class LoginDto(BaseModel):
     password: str
 
 
+class RefreshTokenDto(BaseModel):
+    refresh_token: str
+
+
 class LoginUserResponse(BaseModel):
     id: UUID
     name: str

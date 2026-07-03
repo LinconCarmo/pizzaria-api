@@ -19,14 +19,22 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(sub: str, role: str, exp_min: int = 15) -> str:
-
-    payload = {"sub": sub, "role": role, "exp": datetime.now(UTC) + timedelta(minutes=exp_min)}
+    payload = {
+        "sub": sub,
+        "role": role,
+        "token_type": "access",
+        "exp": datetime.now(UTC) + timedelta(minutes=exp_min),
+    }
 
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
 def create_refresh_token(sub: str, exp_days: int = 7) -> str:
-    payload = {"sub": sub, "exp": datetime.now(UTC) + timedelta(days=exp_days)}
+    payload = {
+        "sub": sub,
+        "token_type": "refresh",
+        "exp": datetime.now(UTC) + timedelta(days=exp_days),
+    }
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
