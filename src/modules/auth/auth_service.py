@@ -16,6 +16,8 @@ from src.modules.auth.auth_schema import (
 )
 from src.modules.users.user_repository import UserRepositoryProtocol
 
+_INVALID_TOKEN_MESSAGE = "Invalid token"
+
 
 class AuthService:
     def __init__(self, repository: UserRepositoryProtocol) -> None:
@@ -65,27 +67,7 @@ class AuthService:
         if not user["isActive"]:
             raise ForbiddenError("User is inactive")
 
-        access_token = create_access_token(
-            sub=str(user_id),
-            role=role,
-        )
-
-        refresh_token = create_refresh_token(
-            sub=str(user_id),
-        )
-
-        user_response = LoginUserResponse(
-            id=user_id,
-            name=user_name,
-            role=role,
-        )
-
-        return LoginResponseDto(
-            user=user_response,
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_in=900,
-        )
+        return self._issue_tokens(user_id=user_id, name=user_name, role=role)
 
     async def refresh_token(
         self,
@@ -96,31 +78,25 @@ class AuthService:
             data.refresh_token,
         )
 
-        token_type = cast(
-            str,
-            payload["token_type"],
-        )
+        if payload.get("token_type") != "refresh":
+            raise UnauthorizedError("Invalid token type")
 
-        if token_type != "refresh":
-            raise UnauthorizedError(
-                "Invalid token type",
-            )
+        sub = payload.get("sub")
 
-        user_id = UUID(
-            cast(
-                str,
-                payload["sub"],
-            )
-        )
+        if not isinstance(sub, str):
+            raise UnauthorizedError(_INVALID_TOKEN_MESSAGE)
+
+        try:
+            user_id = UUID(sub)
+        except ValueError as exc:
+            raise UnauthorizedError(_INVALID_TOKEN_MESSAGE) from exc
 
         user = await self._repository.get_by_id(
             user_id,
         )
 
         if user is None:
-            raise UnauthorizedError(
-                "Invalid token",
-            )
+            raise UnauthorizedError(_INVALID_TOKEN_MESSAGE)
 
         if not user["isActive"]:
             raise ForbiddenError(
@@ -142,24 +118,12 @@ class AuthService:
             user["name"],
         )
 
-        access_token = create_access_token(
-            sub=str(user_id),
-            role=role,
-        )
+        return self._issue_tokens(user_id=user_id, name=user_name, role=role)
 
-        refresh_token = create_refresh_token(
-            sub=str(user_id),
-        )
-
-        user_response = LoginUserResponse(
-            id=user_id,
-            name=user_name,
-            role=role,
-        )
-
+    def _issue_tokens(self, *, user_id: UUID, name: str, role: str) -> LoginResponseDto:
         return LoginResponseDto(
-            user=user_response,
-            access_token=access_token,
-            refresh_token=refresh_token,
+            user=LoginUserResponse(id=user_id, name=name, role=role),
+            access_token=create_access_token(sub=str(user_id), role=role),
+            refresh_token=create_refresh_token(sub=str(user_id)),
             expires_in=900,
         )

@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from prisma import Prisma
 
+from src.core.security import create_refresh_token
 from test.factories import make_create_user_request
 
 pytestmark = pytest.mark.integration
@@ -164,6 +165,30 @@ async def test_refresh_token_returns_401_when_token_is_invalid(
     response = await client.post(
         "/api/v1/auth/refresh-token", json={"refresh_token": "invalid_token"}
     )
+    assert response.status_code == 401
+    body = response.json()
+    assert body["error"]["code"] == "UNAUTHORIZED"
+
+
+async def test_refresh_token_returns_401_when_token_is_expired(
+    client: AsyncClient,
+) -> None:
+    created = await _create_user(
+        client,
+        email="ana@example.com",
+        password="strongpass123",
+    )
+
+    expired_token = create_refresh_token(
+        sub=str(created["id"]),
+        exp_days=-1,
+    )
+
+    response = await client.post(
+        "/api/v1/auth/refresh-token",
+        json={"refresh_token": expired_token},
+    )
+
     assert response.status_code == 401
     body = response.json()
     assert body["error"]["code"] == "UNAUTHORIZED"
