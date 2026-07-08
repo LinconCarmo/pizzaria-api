@@ -12,6 +12,7 @@ from src.core.exceptions import (
 )
 from src.core.middlewares import LoggingMiddleware
 from src.infra.database import lifespan
+from src.modules.auth.auth_controller import router as auth_router
 from src.modules.health.router import router as health_router
 from src.modules.users.user_router import router as users_router
 
@@ -36,3 +37,4 @@ app.add_exception_handler(
 
 app.include_router(health_router)
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
