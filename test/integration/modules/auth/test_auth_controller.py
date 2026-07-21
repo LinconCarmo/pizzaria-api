@@ -248,3 +248,47 @@ async def test_refresh_token_returns_403_when_user_is_inactive(
     assert response.status_code == 403
     body = response.json()
     assert body["error"]["code"] == "FORBIDDEN"
+
+
+async def test_forgot_password_returns_204_and_creates_reset_token(
+    client: AsyncClient,
+    db: Prisma,
+) -> None:
+    created = await _create_user(
+        client,
+        email="ana@example.com",
+        password="strongpass123",
+    )
+
+    response = await client.post(
+        "/api/v1/auth/forgot-password",
+        json={
+            "email": "ana@example.com",
+        },
+    )
+
+    assert response.status_code == 204
+
+    token = await db.passwordresettoken.find_first(
+        where={
+            "userId": created["id"],
+        },
+    )
+
+    assert token is not None
+    assert token.userId == created["id"]
+    assert token.tokenHash != ""
+    assert token.expiresAt is not None
+
+
+async def test_forgot_password_returns_204_when_email_does_not_exist(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/forgot-password",
+        json={
+            "email": "missing@example.com",
+        },
+    )
+
+    assert response.status_code == 204
