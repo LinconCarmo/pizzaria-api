@@ -3,7 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 
 from .auth_dependencies import get_auth_service
-from .auth_schema import LoginDto, LoginResponseDto, RefreshTokenDto
+from .auth_schema import (
+    ForgotPasswordDto,
+    LoginDto,
+    LoginResponseDto,
+    RefreshTokenDto,
+)
 from .auth_service import AuthService
 
 router = APIRouter(
@@ -40,3 +45,17 @@ async def refresh_token(
     ],
 ) -> LoginResponseDto:
     return await service.refresh_token(data)
+
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def forgot_password(
+    data: ForgotPasswordDto,
+    service: Annotated[
+        AuthService,
+        Depends(get_auth_service),
+    ],
+) -> None:
+    await service.forgot_password(data)
