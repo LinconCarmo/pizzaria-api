@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Protocol, cast
+from typing import Protocol
 from uuid import UUID
 
 from prisma import Prisma, types
@@ -12,7 +12,12 @@ class PasswordResetTokenRepositoryProtocol(Protocol):
         user_id: UUID,
         token_hash: str,
         expires_at: datetime,
-    ) -> dict[str, object]: ...
+    ) -> None: ...
+
+    async def delete_by_user_id(
+        self,
+        user_id: UUID,
+    ) -> None: ...
 
 
 class PasswordResetTokenRepository:
@@ -25,7 +30,7 @@ class PasswordResetTokenRepository:
         user_id: UUID,
         token_hash: str,
         expires_at: datetime,
-    ) -> dict[str, object]:
+    ) -> None:
         data: types.PasswordResetTokenCreateInput = {
             "user": {
                 "connect": {
@@ -36,6 +41,16 @@ class PasswordResetTokenRepository:
             "expiresAt": expires_at,
         }
 
-        created = await self._db.passwordresettoken.create(data=data)
+        await self._db.passwordresettoken.create(
+            data=data,
+        )
 
-        return cast(dict[str, object], created.model_dump())
+    async def delete_by_user_id(
+        self,
+        user_id: UUID,
+    ) -> None:
+        await self._db.passwordresettoken.delete_many(
+            where={
+                "userId": str(user_id),
+            }
+        )

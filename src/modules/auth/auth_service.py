@@ -3,13 +3,16 @@ from typing import cast
 from uuid import UUID, uuid4
 
 from src.core.exceptions import ForbiddenError, UnauthorizedError
+from src.core.logger import logger
 from src.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
     hash_password,
+    hash_reset_token,
     verify_password,
 )
+from src.infra.email.email_service import EmailServiceProtocol
 from src.modules.auth.auth_schema import (
     ForgotPasswordDto,
     LoginDto,
@@ -21,7 +24,6 @@ from src.modules.auth.password_reset_token_repository import (
     PasswordResetTokenRepositoryProtocol,
 )
 from src.modules.users.user_repository import UserRepositoryProtocol
-from src.shared.email.email_service import EmailServiceProtocol
 
 _INVALID_TOKEN_MESSAGE = "Invalid token"
 
@@ -41,7 +43,6 @@ class AuthService:
         self,
         data: LoginDto,
     ) -> LoginResponseDto:
-
         user = await self._repository.get_by_email(data.email)
 
         if user is None:
@@ -81,13 +82,16 @@ class AuthService:
         if not user["isActive"]:
             raise ForbiddenError("User is inactive")
 
-        return self._issue_tokens(user_id=user_id, name=user_name, role=role)
+        return self._issue_tokens(
+            user_id=user_id,
+            name=user_name,
+            role=role,
+        )
 
     async def refresh_token(
         self,
         data: RefreshTokenDto,
     ) -> LoginResponseDto:
-
         payload = decode_token(
             data.refresh_token,
         )
@@ -132,7 +136,11 @@ class AuthService:
             user["name"],
         )
 
-        return self._issue_tokens(user_id=user_id, name=user_name, role=role)
+        return self._issue_tokens(
+            user_id=user_id,
+            name=user_name,
+            role=role,
+        )
 
     async def forgot_password(
         self,
@@ -141,14 +149,23 @@ class AuthService:
         user = await self._repository.get_by_email(data.email)
 
         if user is None:
+            hash_password(str(uuid4()))
             return
 
         user_id = cast(UUID, user["id"])
 
+        logger.bind(user_id=user_id).info(
+            "password_reset_requested",
+        )
+
         token = str(uuid4())
-        token_hash = hash_password(token)
+        token_hash = hash_reset_token(token)
 
         expires_at = datetime.now(UTC) + timedelta(hours=1)
+
+        await self._password_reset_repository.delete_by_user_id(
+            user_id,
+        )
 
         await self._password_reset_repository.create(
             user_id=user_id,
@@ -161,10 +178,25 @@ class AuthService:
             token=token,
         )
 
-    def _issue_tokens(self, *, user_id: UUID, name: str, role: str) -> LoginResponseDto:
+    def _issue_tokens(
+        self,
+        *,
+        user_id: UUID,
+        name: str,
+        role: str,
+    ) -> LoginResponseDto:
         return LoginResponseDto(
-            user=LoginUserResponse(id=user_id, name=name, role=role),
-            access_token=create_access_token(sub=str(user_id), role=role),
-            refresh_token=create_refresh_token(sub=str(user_id)),
+            user=LoginUserResponse(
+                id=user_id,
+                name=name,
+                role=role,
+            ),
+            access_token=create_access_token(
+                sub=str(user_id),
+                role=role,
+            ),
+            refresh_token=create_refresh_token(
+                sub=str(user_id),
+            ),
             expires_in=900,
         )

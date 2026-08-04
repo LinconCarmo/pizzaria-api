@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
 from prisma import Prisma
@@ -278,7 +280,10 @@ async def test_forgot_password_returns_204_and_creates_reset_token(
     assert token is not None
     assert token.userId == created["id"]
     assert token.tokenHash != ""
-    assert token.expiresAt is not None
+
+    delta = token.expiresAt - datetime.now(UTC)
+
+    assert timedelta(minutes=55) < delta <= timedelta(hours=1)
 
 
 async def test_forgot_password_returns_204_when_email_does_not_exist(

@@ -4,6 +4,8 @@ from fastapi import Depends
 from prisma import Prisma
 
 from src.infra.database import get_db
+from src.infra.email.email_dependencies import get_email_service
+from src.infra.email.email_service import EmailServiceProtocol
 from src.modules.auth.auth_service import AuthService
 from src.modules.auth.password_reset_token_repository import (
     PasswordResetTokenRepository,
@@ -13,8 +15,6 @@ from src.modules.users.user_repository import (
     UserRepository,
     UserRepositoryProtocol,
 )
-from src.shared.email.email_dependencies import get_email_service
-from src.shared.email.email_service import EmailServiceProtocol
 
 
 def get_auth_repository(
