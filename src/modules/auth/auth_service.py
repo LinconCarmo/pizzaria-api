@@ -1,18 +1,27 @@
+from datetime import UTC, datetime, timedelta
 from typing import cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from src.core.exceptions import ForbiddenError, UnauthorizedError
+from src.core.logger import logger
 from src.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_password,
+    hash_reset_token,
     verify_password,
 )
+from src.infra.email.email_service import EmailServiceProtocol
 from src.modules.auth.auth_schema import (
+    ForgotPasswordDto,
     LoginDto,
     LoginResponseDto,
     LoginUserResponse,
     RefreshTokenDto,
+)
+from src.modules.auth.password_reset_token_repository import (
+    PasswordResetTokenRepositoryProtocol,
 )
 from src.modules.users.user_repository import UserRepositoryProtocol
 
@@ -20,14 +29,20 @@ _INVALID_TOKEN_MESSAGE = "Invalid token"
 
 
 class AuthService:
-    def __init__(self, repository: UserRepositoryProtocol) -> None:
+    def __init__(
+        self,
+        repository: UserRepositoryProtocol,
+        password_reset_repository: PasswordResetTokenRepositoryProtocol,
+        email_service: EmailServiceProtocol,
+    ) -> None:
         self._repository = repository
+        self._password_reset_repository = password_reset_repository
+        self._email_service = email_service
 
     async def login(
         self,
         data: LoginDto,
     ) -> LoginResponseDto:
-
         user = await self._repository.get_by_email(data.email)
 
         if user is None:
@@ -67,13 +82,16 @@ class AuthService:
         if not user["isActive"]:
             raise ForbiddenError("User is inactive")
 
-        return self._issue_tokens(user_id=user_id, name=user_name, role=role)
+        return self._issue_tokens(
+            user_id=user_id,
+            name=user_name,
+            role=role,
+        )
 
     async def refresh_token(
         self,
         data: RefreshTokenDto,
     ) -> LoginResponseDto:
-
         payload = decode_token(
             data.refresh_token,
         )
@@ -118,12 +136,67 @@ class AuthService:
             user["name"],
         )
 
-        return self._issue_tokens(user_id=user_id, name=user_name, role=role)
+        return self._issue_tokens(
+            user_id=user_id,
+            name=user_name,
+            role=role,
+        )
 
-    def _issue_tokens(self, *, user_id: UUID, name: str, role: str) -> LoginResponseDto:
+    async def forgot_password(
+        self,
+        data: ForgotPasswordDto,
+    ) -> None:
+        user = await self._repository.get_by_email(data.email)
+
+        if user is None:
+            hash_password(str(uuid4()))
+            return
+
+        user_id = cast(UUID, user["id"])
+
+        logger.bind(user_id=user_id).info(
+            "password_reset_requested",
+        )
+
+        token = str(uuid4())
+        token_hash = hash_reset_token(token)
+
+        expires_at = datetime.now(UTC) + timedelta(hours=1)
+
+        await self._password_reset_repository.delete_by_user_id(
+            user_id,
+        )
+
+        await self._password_reset_repository.create(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+
+        await self._email_service.send_password_reset_email(
+            email=data.email,
+            token=token,
+        )
+
+    def _issue_tokens(
+        self,
+        *,
+        user_id: UUID,
+        name: str,
+        role: str,
+    ) -> LoginResponseDto:
         return LoginResponseDto(
-            user=LoginUserResponse(id=user_id, name=name, role=role),
-            access_token=create_access_token(sub=str(user_id), role=role),
-            refresh_token=create_refresh_token(sub=str(user_id)),
+            user=LoginUserResponse(
+                id=user_id,
+                name=name,
+                role=role,
+            ),
+            access_token=create_access_token(
+                sub=str(user_id),
+                role=role,
+            ),
+            refresh_token=create_refresh_token(
+                sub=str(user_id),
+            ),
             expires_in=900,
         )

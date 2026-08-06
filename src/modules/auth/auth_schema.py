@@ -23,3 +23,7 @@ class LoginResponseDto(BaseModel):
     access_token: str
     refresh_token: str
     expires_in: int
+
+
+class ForgotPasswordDto(BaseModel):
+    email: EmailStr
