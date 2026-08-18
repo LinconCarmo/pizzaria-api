@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from prisma import Prisma
 
-from src.core.security import create_refresh_token
+from src.core.security import create_refresh_token, hash_reset_token
 from test.factories import make_create_user_request
 
 pytestmark = pytest.mark.integration
@@ -297,3 +297,110 @@ async def test_forgot_password_returns_204_when_email_does_not_exist(
     )
 
     assert response.status_code == 204
+
+
+async def test_reset_password_returns_204_when_token_is_valid(
+    client: AsyncClient,
+    db: Prisma,
+) -> None:
+    created = await _create_user(
+        client,
+        email="ana@example.com",
+        password="strongpass123",
+    )
+
+    reset_token = "valid-reset-token"
+
+    await db.passwordresettoken.create(
+        data={
+            "user": {
+                "connect": {
+                    "id": created["id"],
+                }
+            },
+            "tokenHash": hash_reset_token(reset_token),
+            "expiresAt": datetime.now(UTC) + timedelta(hours=1),
+        },
+    )
+
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "token": reset_token,
+            "new_password": "newstrongpass123",
+        },
+    )
+
+    assert response.status_code == 204
+
+    async def test_reset_password_returns_400_when_token_is_invalid(
+        client: AsyncClient,
+    ) -> None:
+        response = await client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "token": "invalid-token",
+                "new_password": "newstrongpass123",
+            },
+        )
+
+        assert response.status_code == 400
+
+        body = response.json()
+
+        assert body["error"]["code"] == "BAD_REQUEST"
+
+    async def test_reset_password_returns_400_when_token_is_expired(
+        client: AsyncClient,
+        db: Prisma,
+    ) -> None:
+        created = await _create_user(
+            client,
+            email="expired@example.com",
+            password="strongpass123",
+        )
+
+        reset_token = "expired-reset-token"
+
+        await db.passwordresettoken.create(
+            data={
+                "user": {
+                    "connect": {
+                        "id": created["id"],
+                    }
+                },
+                "tokenHash": hash_reset_token(reset_token),
+                "expiresAt": datetime.now(UTC) - timedelta(hours=1),
+            },
+        )
+
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "token": reset_token,
+            "new_password": "newstrongpass123",
+        },
+    )
+
+    assert response.status_code == 400
+
+    body = response.json()
+
+    assert body["error"]["code"] == "BAD_REQUEST"
+
+    async def test_reset_password_returns_422_when_password_is_too_short(
+        client: AsyncClient,
+    ) -> None:
+        response = await client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "token": "some-token",
+                "new_password": "123",
+            },
+        )
+
+        assert response.status_code == 422
+
+        body = response.json()
+
+        assert body["error"]["code"] == "VALIDATION_ERROR"

@@ -8,6 +8,7 @@ from .auth_schema import (
     LoginDto,
     LoginResponseDto,
     RefreshTokenDto,
+    ResetPasswordDto,
 )
 from .auth_service import AuthService
 
@@ -59,3 +60,17 @@ async def forgot_password(
     ],
 ) -> None:
     await service.forgot_password(data)
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def reset_password(
+    data: ResetPasswordDto,
+    service: Annotated[
+        AuthService,
+        Depends(get_auth_service),
+    ],
+) -> None:
+    await service.reset_password(data)

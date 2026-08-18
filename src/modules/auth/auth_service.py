@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID, uuid4
 
-from src.core.exceptions import ForbiddenError, UnauthorizedError
+from src.core.exceptions import BadRequestError, ForbiddenError, InternalError, UnauthorizedError
 from src.core.logger import logger
 from src.core.security import (
     create_access_token,
@@ -19,6 +19,7 @@ from src.modules.auth.auth_schema import (
     LoginResponseDto,
     LoginUserResponse,
     RefreshTokenDto,
+    ResetPasswordDto,
 )
 from src.modules.auth.password_reset_token_repository import (
     PasswordResetTokenRepositoryProtocol,
@@ -199,4 +200,44 @@ class AuthService:
                 sub=str(user_id),
             ),
             expires_in=900,
+        )
+
+    async def reset_password(
+        self,
+        data: ResetPasswordDto,
+    ) -> None:
+
+        token_hash = hash_reset_token(data.token)
+
+        reset_token = await self._password_reset_repository.get_by_token_hash(token_hash=token_hash)
+
+        if reset_token is None:
+            raise BadRequestError("Invalid token")
+
+        if reset_token.usedAt is not None:
+            raise BadRequestError("Token already used")
+
+        now = datetime.now(UTC)
+
+        if reset_token.expiresAt < now:
+            raise BadRequestError("Expired token")
+
+        user = await self._repository.get_by_id(
+            reset_token.userId,
+        )
+
+        if user is None:
+            raise InternalError("User associated with reset token not found")
+
+        hashed_password = hash_password(data.new_password)
+
+        user_id = cast(
+            UUID,
+            user["id"],
+        )
+
+        await self._repository.update(user_id, hashed_password=hashed_password)
+
+        await self._password_reset_repository.mark_as_used(
+            token_id=reset_token.id,
         )

@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
 from prisma import Prisma, types
+from prisma.models import PasswordResetToken
 
 
 class PasswordResetTokenRepositoryProtocol(Protocol):
@@ -17,6 +18,18 @@ class PasswordResetTokenRepositoryProtocol(Protocol):
     async def delete_by_user_id(
         self,
         user_id: UUID,
+    ) -> None: ...
+
+    async def get_by_token_hash(
+        self,
+        *,
+        token_hash: str,
+    ) -> PasswordResetToken | None: ...
+
+    async def mark_as_used(
+        self,
+        *,
+        token_id: UUID,
     ) -> None: ...
 
 
@@ -53,4 +66,17 @@ class PasswordResetTokenRepository:
             where={
                 "userId": str(user_id),
             }
+        )
+
+    async def get_by_token_hash(
+        self,
+        *,
+        token_hash: str,
+    ) -> PasswordResetToken | None:
+        row = await self._db.passwordresettoken.find_first(where={"tokenHash": token_hash})
+        return row
+
+    async def mark_as_used(self, *, token_id: UUID) -> None:
+        await self._db.passwordresettoken.update(
+            where={"id": str(token_id)}, data={"usedAt": datetime.now(UTC)}
         )
