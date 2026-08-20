@@ -333,46 +333,75 @@ async def test_reset_password_returns_204_when_token_is_valid(
 
     assert response.status_code == 204
 
-    async def test_reset_password_returns_400_when_token_is_invalid(
-        client: AsyncClient,
-    ) -> None:
-        response = await client.post(
-            "/api/v1/auth/reset-password",
-            json={
-                "token": "invalid-token",
-                "new_password": "newstrongpass123",
+    token = await db.passwordresettoken.find_first(
+        where={"userId": created["id"]},
+    )
+
+    assert token is not None
+    assert token.usedAt is not None
+
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "ana@example.com",
+            "password": "newstrongpass123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    old_password_response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "ana@example.com",
+            "password": "strongpass123",
+        },
+    )
+
+    assert old_password_response.status_code == 401
+
+
+async def test_reset_password_returns_400_when_token_is_invalid(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "token": "invalid-token",
+            "new_password": "newstrongpass123",
+        },
+    )
+
+    assert response.status_code == 400
+
+    body = response.json()
+
+    assert body["error"]["code"] == "BAD_REQUEST"
+
+
+async def test_reset_password_returns_400_when_token_is_expired(
+    client: AsyncClient,
+    db: Prisma,
+) -> None:
+    created = await _create_user(
+        client,
+        email="expired@example.com",
+        password="strongpass123",
+    )
+
+    reset_token = "expired-reset-token"
+
+    await db.passwordresettoken.create(
+        data={
+            "user": {
+                "connect": {
+                    "id": created["id"],
+                }
             },
-        )
-
-        assert response.status_code == 400
-
-        body = response.json()
-
-        assert body["error"]["code"] == "BAD_REQUEST"
-
-    async def test_reset_password_returns_400_when_token_is_expired(
-        client: AsyncClient,
-        db: Prisma,
-    ) -> None:
-        created = await _create_user(
-            client,
-            email="expired@example.com",
-            password="strongpass123",
-        )
-
-        reset_token = "expired-reset-token"
-
-        await db.passwordresettoken.create(
-            data={
-                "user": {
-                    "connect": {
-                        "id": created["id"],
-                    }
-                },
-                "tokenHash": hash_reset_token(reset_token),
-                "expiresAt": datetime.now(UTC) - timedelta(hours=1),
-            },
-        )
+            "tokenHash": hash_reset_token(reset_token),
+            "expiresAt": datetime.now(UTC) - timedelta(hours=1),
+        },
+    )
 
     response = await client.post(
         "/api/v1/auth/reset-password",
@@ -388,19 +417,20 @@ async def test_reset_password_returns_204_when_token_is_valid(
 
     assert body["error"]["code"] == "BAD_REQUEST"
 
-    async def test_reset_password_returns_422_when_password_is_too_short(
-        client: AsyncClient,
-    ) -> None:
-        response = await client.post(
-            "/api/v1/auth/reset-password",
-            json={
-                "token": "some-token",
-                "new_password": "123",
-            },
-        )
 
-        assert response.status_code == 422
+async def test_reset_password_returns_422_when_password_is_too_short(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "token": "some-token",
+            "new_password": "123",
+        },
+    )
 
-        body = response.json()
+    assert response.status_code == 422
 
-        assert body["error"]["code"] == "VALIDATION_ERROR"
+    body = response.json()
+
+    assert body["error"]["code"] == "VALIDATION_ERROR"

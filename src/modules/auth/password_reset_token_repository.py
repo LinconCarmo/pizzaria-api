@@ -3,7 +3,6 @@ from typing import Protocol
 from uuid import UUID
 
 from prisma import Prisma, types
-from prisma.models import PasswordResetToken
 
 
 class PasswordResetTokenRepositoryProtocol(Protocol):
@@ -24,12 +23,14 @@ class PasswordResetTokenRepositoryProtocol(Protocol):
         self,
         *,
         token_hash: str,
-    ) -> PasswordResetToken | None: ...
+    ) -> dict[str, object] | None: ...
 
-    async def mark_as_used(
+    async def reset_password(
         self,
         *,
+        user_id: UUID,
         token_id: UUID,
+        hashed_password: str,
     ) -> None: ...
 
 
@@ -72,11 +73,41 @@ class PasswordResetTokenRepository:
         self,
         *,
         token_hash: str,
-    ) -> PasswordResetToken | None:
-        row = await self._db.passwordresettoken.find_first(where={"tokenHash": token_hash})
-        return row
+    ) -> dict[str, object] | None:
+        where: types.PasswordResetTokenWhereInput = {"tokenHash": token_hash}
+        row = await self._db.passwordresettoken.find_first(where=where)
+        return row.model_dump() if row is not None else None
 
-    async def mark_as_used(self, *, token_id: UUID) -> None:
-        await self._db.passwordresettoken.update(
-            where={"id": str(token_id)}, data={"usedAt": datetime.now(UTC)}
-        )
+    async def reset_password(
+        self,
+        *,
+        user_id: UUID,
+        token_id: UUID,
+        hashed_password: str,
+    ) -> None:
+        user_where: types.UserWhereUniqueInput = {
+            "id": str(user_id),
+        }
+
+        user_data: types.UserUpdateInput = {
+            "hashedPassword": hashed_password,
+        }
+
+        token_where: types.PasswordResetTokenWhereUniqueInput = {
+            "id": str(token_id),
+        }
+
+        token_data: types.PasswordResetTokenUpdateInput = {
+            "usedAt": datetime.now(UTC),
+        }
+
+        async with self._db.tx() as tx:
+            await tx.user.update(
+                where=user_where,
+                data=user_data,
+            )
+
+            await tx.passwordresettoken.update(
+                where=token_where,
+                data=token_data,
+            )
