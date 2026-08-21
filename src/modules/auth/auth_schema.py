@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginDto(BaseModel):
@@ -27,3 +27,8 @@ class LoginResponseDto(BaseModel):
 
 class ForgotPasswordDto(BaseModel):
     email: EmailStr
+
+
+class ResetPasswordDto(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)

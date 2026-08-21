@@ -43,6 +43,15 @@ class NotFoundError(DomainError):
         )
 
 
+class BadRequestError(DomainError):
+    def __init__(self, message: str = "Bad request") -> None:
+        super().__init__(
+            message=message,
+            code="BAD_REQUEST",
+            status_code=400,
+        )
+
+
 class ConflictError(DomainError):
     def __init__(self, message: str = "Conflict detected") -> None:
         super().__init__(

@@ -2,12 +2,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
+from src.core.exceptions import ErrorResponse
+
 from .auth_dependencies import get_auth_service
 from .auth_schema import (
     ForgotPasswordDto,
     LoginDto,
     LoginResponseDto,
     RefreshTokenDto,
+    ResetPasswordDto,
 )
 from .auth_service import AuthService
 
@@ -59,3 +62,19 @@ async def forgot_password(
     ],
 ) -> None:
     await service.forgot_password(data)
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Define nova senha a partir do token de reset",
+    responses={400: {"model": ErrorResponse}},
+)
+async def reset_password(
+    data: ResetPasswordDto,
+    service: Annotated[
+        AuthService,
+        Depends(get_auth_service),
+    ],
+) -> None:
+    await service.reset_password(data)
