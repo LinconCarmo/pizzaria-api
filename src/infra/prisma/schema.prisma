@@ -34,6 +34,31 @@ model User {
   @@map("users")
 }
 
+model Unit {
+  id    String @id @default(uuid()) @db.Char(36)
+  name  String
+  cnpj  String @unique
+  email String
+  phone String
+
+  //adress fields
+  street       String
+  number       String
+  neighborhood String
+  city         String
+  state        String
+  zip          String
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([deletedAt])
+  @@map("units")
+}
+
 model Role {
   id          String   @id @default(uuid()) @db.Char(36)
   name        String   @unique
