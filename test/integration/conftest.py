@@ -9,6 +9,7 @@ from prisma import Prisma
 from testcontainers.mysql import MySqlContainer
 
 from src.infra.seed import seed_roles as seed_default_roles
+from src.infra.seed import seed_unit as seed_default_unit
 
 
 @pytest.fixture(scope="session")
@@ -35,8 +36,14 @@ async def db(mysql_container: MySqlContainer) -> AsyncGenerator[Prisma]:
         check=True,
         env={**os.environ, "DATABASE_URL": db_url},
     )
-    client = Prisma(datasource={"url": db_url}, use_dotenv=False)
+
+    client = Prisma(
+        datasource={"url": db_url},
+        use_dotenv=False,
+    )
+
     await client.connect()
+
     try:
         yield client
     finally:
@@ -46,12 +53,18 @@ async def db(mysql_container: MySqlContainer) -> AsyncGenerator[Prisma]:
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def seed_roles(db: Prisma) -> None:
     await seed_default_roles(db)
+    await seed_default_unit(db)
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database(db: Prisma) -> AsyncGenerator[None]:
     yield
+
     await db.user.delete_many()
+
+    await db.unit.delete_many(
+        where={"cnpj": {"not": "12345678000195"}},
+    )
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -65,7 +78,11 @@ async def client(db: Prisma) -> AsyncGenerator[AsyncClient]:
     app.dependency_overrides[get_db] = _override_db
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as ac:
         yield ac
 
     app.dependency_overrides.clear()

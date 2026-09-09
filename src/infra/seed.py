@@ -11,6 +11,19 @@ ROLES: list[tuple[str, str]] = [
     ("ADMIN", "Administrador"),
 ]
 
+DEFAULT_UNIT: types.UnitCreateInput = {
+    "name": "Unidade Principal",
+    "cnpj": "12345678000195",
+    "email": "contato@pizzaria.com",
+    "phone": "41999999999",
+    "street": "Rua Principal",
+    "number": "100",
+    "neighborhood": "Centro",
+    "city": "Curitiba",
+    "state": "PR",
+    "zip": "80000000",
+}
+
 
 async def seed_roles(db: Prisma) -> None:
     """Garante (idempotente) que os roles padrão existem.
@@ -30,11 +43,29 @@ async def seed_roles(db: Prisma) -> None:
     logger.bind(roles=[name for name, _ in ROLES]).info("roles_seeded")
 
 
+async def seed_unit(db: Prisma) -> None:
+    """Garante (idempotente) que a unidade padrão existe."""
+
+    where: types.UnitWhereUniqueInput = {
+        "cnpj": DEFAULT_UNIT["cnpj"],
+    }
+
+    data: types.UnitUpsertInput = {
+        "create": DEFAULT_UNIT,
+        "update": {},
+    }
+
+    await db.unit.upsert(where=where, data=data)
+
+    logger.bind(unit=DEFAULT_UNIT["name"]).info("unit_seeded")
+
+
 async def main() -> None:
     db = Prisma()
     await db.connect()
     try:
         await seed_roles(db)
+        await seed_unit(db)
     finally:
         await db.disconnect()
 

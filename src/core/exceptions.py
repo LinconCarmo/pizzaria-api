@@ -119,13 +119,26 @@ async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
+    details = []
+
+    for error in exc.errors():
+        error = error.copy()
+        ctx = error.get("ctx")
+
+        if isinstance(ctx, dict) and "error" in ctx:
+            ctx = ctx.copy()
+            ctx["error"] = str(ctx["error"])
+            error["ctx"] = ctx
+
+        details.append(error)
+
     return JSONResponse(
         status_code=422,
         content={
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Validation failed",
-                "details": exc.errors(),
+                "details": details,
             }
         },
     )
