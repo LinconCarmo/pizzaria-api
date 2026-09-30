@@ -1,14 +1,15 @@
 from uuid import UUID
 
-from src.core.exceptions import NotFoundError
+from src.core.exceptions import BadRequestError, NotFoundError
 from src.modules.units.unit_repository import UnitRepositoryProtocol
 from src.modules.units.unit_schema import (
     CreateUnitRequest,
-    PaginationMeta,
     UnitListResponse,
     UnitResponse,
+    UnitSummaryResponse,
     UpdateUnitRequest,
 )
+from src.shared.types import PaginationMeta
 
 
 class UnitService:
@@ -42,10 +43,12 @@ class UnitService:
         self,
         page: int,
         page_size: int,
+        include_inactive: bool = False,
     ) -> UnitListResponse:
         items_raw, total = await self._repository.list_paginated(
             page=page,
             page_size=page_size,
+            include_inactive=include_inactive,
         )
 
         total_pages = (total + page_size - 1) // page_size if total else 0
@@ -71,6 +74,9 @@ class UnitService:
             raise NotFoundError(f"Unit {unit_id} not found")
 
         updates = data.model_dump(exclude_unset=True)
+
+        if not updates:
+            raise BadRequestError("At least one field must be provided for update")
 
         raw = await self._repository.update(
             unit_id,
@@ -107,13 +113,32 @@ class UnitService:
             }
         )
 
-    async def get_current(self) -> UnitResponse:
+    def _to_summary_response(
+        self,
+        raw: dict[str, object],
+    ) -> UnitSummaryResponse:
+        return UnitSummaryResponse.model_validate(
+            {
+                "name": raw["name"],
+                "phone": raw["phone"],
+                "street": raw["street"],
+                "number": raw["number"],
+                "neighborhood": raw["neighborhood"],
+                "city": raw["city"],
+                "state": raw["state"],
+                "zip": raw["zip"],
+            }
+        )
+
+    async def get_current(self) -> UnitSummaryResponse:
+        """Return the first non-deleted unit as the current unit for the MVP."""
         items_raw, _ = await self._repository.list_paginated(
             page=1,
             page_size=1,
+            include_inactive=False,
         )
 
         if not items_raw:
             raise NotFoundError("Current unit not found")
 
-        return self._to_response(items_raw[0])
+        return self._to_summary_response(items_raw[0])

@@ -5,12 +5,12 @@ from httpx import AsyncClient
 from prisma import Prisma
 
 from src.core.security import create_access_token
+from src.infra.seed import DEFAULT_UNIT
 from test.factories import make_create_unit_request
 
 pytestmark = pytest.mark.integration
 
 
-DEFAULT_CNPJ = "12345678000195"
 NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
 ADMIN_USER_ID = "00000000-0000-4000-8000-000000000001"
 
@@ -57,15 +57,29 @@ async def test_post_units_creates_unit_in_db_when_payload_valid(
 
     body = response.json()
 
-    assert body["cnpj"] == "11222333000181"
-    assert body["name"] == "Unidade Principal"
+    assert body["name"] == payload["name"]
+    assert body["cnpj"] == payload["cnpj"]
 
     persisted = await db.unit.find_unique(
         where={"cnpj": "11222333000181"},
     )
 
     assert persisted is not None
-    assert persisted.name == "Unidade Principal"
+    assert persisted.name == payload["name"]
+
+
+async def test_post_units_returns_403_when_user_is_not_admin(
+    client: AsyncClient,
+) -> None:
+    token = create_access_token(sub=ADMIN_USER_ID, role="STAFF")
+
+    response = await client.post(
+        "/api/v1/units",
+        json=make_create_unit_request().model_dump(mode="json"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
 
 
 async def test_post_units_returns_409_when_cnpj_already_exists(
@@ -130,8 +144,9 @@ async def test_get_current_unit_returns_default_unit(
 
     body = response.json()
 
-    assert body["name"] == "Unidade Principal"
-    assert body["cnpj"] == DEFAULT_CNPJ
+    assert body["name"] == DEFAULT_UNIT["name"]
+    assert body["phone"] == DEFAULT_UNIT["phone"]
+    assert body["city"] == DEFAULT_UNIT["city"]
 
 
 async def test_get_unit_returns_unit_when_exists(
@@ -166,6 +181,15 @@ async def test_get_unit_returns_404_when_id_not_found(
 async def test_list_units_returns_paginated_results_when_multiple_exist(
     client: AsyncClient,
 ) -> None:
+    before_response = await client.get(
+        "/api/v1/units",
+        headers=_admin_headers(),
+    )
+
+    assert before_response.status_code == 200
+
+    before_total = before_response.json()["meta"]["total"]
+
     await _create_unit(
         client,
         cnpj="11222333000181",
@@ -188,8 +212,8 @@ async def test_list_units_returns_paginated_results_when_multiple_exist(
 
     body = response.json()
 
-    assert body["meta"]["total"] == 4
-    assert body["meta"]["total_pages"] == 2
+    assert body["meta"]["total"] == before_total + 3
+    assert body["meta"]["total_pages"] == (before_total + 3 + 1) // 2
     assert len(body["items"]) == 2
 
 
@@ -314,6 +338,15 @@ async def test_get_unit_returns_404_when_unit_soft_deleted(
 async def test_list_units_excludes_soft_deleted_records(
     client: AsyncClient,
 ) -> None:
+    before_response = await client.get(
+        "/api/v1/units",
+        headers=_admin_headers(),
+    )
+
+    assert before_response.status_code == 200
+
+    before_total = before_response.json()["meta"]["total"]
+
     keep = await _create_unit(
         client,
         cnpj="11222333000181",
@@ -336,6 +369,6 @@ async def test_list_units_excludes_soft_deleted_records(
 
     body = response.json()
 
-    assert body["meta"]["total"] == 2
+    assert body["meta"]["total"] == before_total + 1
     assert any(item["id"] == keep["id"] for item in body["items"])
     assert all(item["id"] != drop["id"] for item in body["items"])

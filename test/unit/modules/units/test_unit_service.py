@@ -8,6 +8,7 @@ from src.modules.units.unit_repository import UnitRepositoryProtocol
 from src.modules.units.unit_schema import (
     UnitListResponse,
     UnitResponse,
+    UnitSummaryResponse,
     UpdateUnitRequest,
 )
 from src.modules.units.unit_service import UnitService
@@ -167,9 +168,9 @@ async def test_get_current_returns_first_active_unit(service: UnitService, repo:
 
     result = await service.get_current()
 
-    assert isinstance(result, UnitResponse)
-    assert result.id == UNIT_ID
-    repo.list_paginated.assert_awaited_once_with(page=1, page_size=1)
+    assert isinstance(result, UnitSummaryResponse)
+    assert result.name == "Unidade Principal"
+    repo.list_paginated.assert_awaited_once_with(page=1, page_size=1, include_inactive=False)
 
 
 async def test_get_current_raises_not_found_when_no_unit_exists(

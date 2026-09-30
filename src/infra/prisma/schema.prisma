@@ -41,7 +41,7 @@ model Unit {
   email String
   phone String
 
-  //adress fields
+  // address fields
   street       String
   number       String
   neighborhood String

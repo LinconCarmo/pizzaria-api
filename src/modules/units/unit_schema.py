@@ -1,7 +1,40 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from src.shared.types import PaginationMeta
+
+UF = Literal[
+    "AC",
+    "AL",
+    "AP",
+    "AM",
+    "BA",
+    "CE",
+    "DF",
+    "ES",
+    "GO",
+    "MA",
+    "MT",
+    "MS",
+    "MG",
+    "PA",
+    "PB",
+    "PR",
+    "PE",
+    "PI",
+    "RJ",
+    "RN",
+    "RS",
+    "RO",
+    "RR",
+    "SC",
+    "SP",
+    "SE",
+    "TO",
+]
 
 
 def validate_cnpj(value: str) -> str:
@@ -66,30 +99,109 @@ class CreateUnitRequest(BaseModel):
         description="Unit phone",
         examples=["41999999999"],
     )
-    street: str = Field(..., min_length=1, max_length=120)
-    number: str = Field(..., min_length=1, max_length=20)
-    neighborhood: str = Field(..., min_length=1, max_length=120)
-    city: str = Field(..., min_length=1, max_length=120)
-    state: str = Field(..., min_length=2, max_length=2)
-    zip: str = Field(..., min_length=1, max_length=10)
+
+    street: str = Field(
+        ...,
+        min_length=1,
+        max_length=120,
+        description="Unit street address",
+        examples=["Rua XV de Novembro"],
+    )
+    number: str = Field(
+        ...,
+        min_length=1,
+        max_length=20,
+        description="Unit street number",
+        examples=["100"],
+    )
+    neighborhood: str = Field(
+        ...,
+        min_length=1,
+        max_length=120,
+        description="Unit neighborhood",
+        examples=["Centro"],
+    )
+    city: str = Field(
+        ...,
+        min_length=1,
+        max_length=120,
+        description="Unit city",
+        examples=["Curitiba"],
+    )
+    state: UF = Field(
+        ...,
+        min_length=2,
+        max_length=2,
+        description="Unit state (UF)",
+        examples=["PR"],
+    )
+    zip: str = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="Unit ZIP code",
+        examples=["80000000"],
+    )
 
     @field_validator("cnpj")
     @classmethod
     def validate_cnpj_field(cls, value: str) -> str:
         return validate_cnpj(value)
 
+    @field_validator("zip")
+    @classmethod
+    def normalize_zip(cls, value: str) -> str:
+        return value.replace("-", "")
+
 
 class UpdateUnitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=120)
     cnpj: str | None = Field(default=None)
     email: EmailStr | None = Field(default=None)
     phone: str | None = Field(default=None, min_length=1, max_length=20)
-    street: str | None = Field(default=None, min_length=1, max_length=120)
-    number: str | None = Field(default=None, min_length=1, max_length=20)
-    neighborhood: str | None = Field(default=None, min_length=1, max_length=120)
-    city: str | None = Field(default=None, min_length=1, max_length=120)
-    state: str | None = Field(default=None, min_length=2, max_length=2)
-    zip: str | None = Field(default=None, min_length=1, max_length=10)
+    street: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="Unit street address",
+        examples=["Rua XV de Novembro"],
+    )
+    number: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=20,
+        description="Unit street number",
+        examples=["100"],
+    )
+    neighborhood: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="Unit neighborhood",
+        examples=["Centro"],
+    )
+    city: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="Unit city",
+        examples=["Curitiba"],
+    )
+    state: UF | None = Field(
+        default=None,
+        min_length=2,
+        max_length=2,
+        description="Unit state (UF)",
+        examples=["PR"],
+    )
+    zip: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=10,
+        description="Unit ZIP code",
+        examples=["80000000"],
+    )
     is_active: bool | None = None
 
     @field_validator("cnpj")
@@ -99,6 +211,14 @@ class UpdateUnitRequest(BaseModel):
             return None
 
         return validate_cnpj(value)
+
+    @field_validator("zip")
+    @classmethod
+    def normalize_zip(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return value.replace("-", "")
 
 
 class UnitResponse(_BaseSchema):
@@ -118,13 +238,17 @@ class UnitResponse(_BaseSchema):
     updated_at: datetime
 
 
-class PaginationMeta(BaseModel):
-    page: int = Field(..., ge=1, description="Current page number", examples=[1])
-    page_size: int = Field(..., ge=1, le=100, description="Items per page", examples=[20])
-    total: int = Field(..., ge=0, description="Total matching units", examples=[45])
-    total_pages: int = Field(..., ge=0, description="Total number of pages", examples=[3])
-
-
 class UnitListResponse(BaseModel):
     items: list[UnitResponse] = Field(..., description="Units in current page")
     meta: PaginationMeta = Field(..., description="Pagination metadata")
+
+
+class UnitSummaryResponse(BaseModel):
+    name: str
+    phone: str
+    street: str
+    number: str
+    neighborhood: str
+    city: str
+    state: str
+    zip: str

@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from prisma import Prisma
 from testcontainers.mysql import MySqlContainer
 
+from src.infra.seed import DEFAULT_UNIT
 from src.infra.seed import seed_roles as seed_default_roles
 from src.infra.seed import seed_unit as seed_default_unit
 
@@ -63,7 +64,7 @@ async def clean_database(db: Prisma) -> AsyncGenerator[None]:
     await db.user.delete_many()
 
     await db.unit.delete_many(
-        where={"cnpj": {"not": "12345678000195"}},
+        where={"cnpj": {"not": DEFAULT_UNIT["cnpj"]}},
     )
 
 

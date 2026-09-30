@@ -10,6 +10,7 @@ from src.modules.units.unit_schema import (
     CreateUnitRequest,
     UnitListResponse,
     UnitResponse,
+    UnitSummaryResponse,
     UpdateUnitRequest,
 )
 from src.modules.units.unit_service import UnitService
@@ -24,7 +25,24 @@ router = APIRouter(
     "",
     status_code=status.HTTP_201_CREATED,
     summary="Create unit",
-    response_model=UnitResponse,
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "Autenticação necessária",
+        },
+        403: {
+            "model": ErrorResponse,
+            "description": "Permissão de administrador necessária",
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "CNPJ já cadastrado",
+        },
+        422: {
+            "model": ErrorResponse,
+            "description": "Payload inválido",
+        },
+    },
 )
 async def create_unit(
     data: CreateUnitRequest,
@@ -37,18 +55,36 @@ async def create_unit(
 @router.get(
     "/current",
     summary="Get current unit",
-    response_model=UnitResponse,
+    responses={
+        404: {
+            "model": ErrorResponse,
+            "description": "Unidade atual não encontrada",
+        },
+    },
 )
 async def get_current_unit(
     service: Annotated[UnitService, Depends(get_unit_service)],
-) -> UnitResponse:
+) -> UnitSummaryResponse:
     return await service.get_current()
 
 
 @router.get(
     "/{unit_id}",
     summary="Get unit by id",
-    responses={404: {"model": ErrorResponse, "description": "Unidade não encontrada"}},
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "Autenticação necessária",
+        },
+        403: {
+            "model": ErrorResponse,
+            "description": "Permissão de administrador necessária",
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "Unidade não encontrada",
+        },
+    },
 )
 async def get_unit(
     unit_id: UUID,
@@ -61,6 +97,16 @@ async def get_unit(
 @router.get(
     "",
     summary="List units (paginated)",
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "Autenticação necessária",
+        },
+        403: {
+            "model": ErrorResponse,
+            "description": "Permissão de administrador necessária",
+        },
+    },
 )
 async def list_unit(
     service: Annotated[UnitService, Depends(get_unit_service)],
@@ -75,9 +121,26 @@ async def list_unit(
     "/{unit_id}",
     summary="Update unit (partial)",
     responses={
-        404: {"model": ErrorResponse, "description": "Unidade não encontrada"},
-        409: {"model": ErrorResponse, "description": "CNPJ já cadastrado"},
-        422: {"model": ErrorResponse, "description": "Payload inválido"},
+        401: {
+            "model": ErrorResponse,
+            "description": "Autenticação necessária",
+        },
+        403: {
+            "model": ErrorResponse,
+            "description": "Permissão de administrador necessária",
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "Unidade não encontrada",
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "CNPJ já cadastrado",
+        },
+        422: {
+            "model": ErrorResponse,
+            "description": "Payload inválido",
+        },
     },
 )
 async def update_unit(
@@ -93,7 +156,20 @@ async def update_unit(
     "/{unit_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Soft delete unit",
-    responses={404: {"model": ErrorResponse, "description": "Unidade não encontrada"}},
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "Autenticação necessária",
+        },
+        403: {
+            "model": ErrorResponse,
+            "description": "Permissão de administrador necessária",
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "Unidade não encontrada",
+        },
+    },
 )
 async def delete_unit(
     unit_id: UUID,

@@ -3,7 +3,7 @@ from typing import Protocol, cast
 from uuid import UUID
 
 from prisma import Prisma, types
-from prisma.errors import RecordNotFoundError, UniqueViolationError
+from prisma.errors import UniqueViolationError
 
 from src.core.exceptions import ConflictError, NotFoundError
 
@@ -28,9 +28,9 @@ class UnitRepositoryProtocol(Protocol):
 
     async def list_paginated(
         self,
-        *,
         page: int,
         page_size: int,
+        include_inactive: bool = False,
     ) -> tuple[list[dict[str, object]], int]: ...
 
     async def update(
@@ -100,12 +100,17 @@ class UnitRepository:
 
     async def list_paginated(
         self,
-        *,
         page: int,
         page_size: int,
+        include_inactive: bool = False,
     ) -> tuple[list[dict[str, object]], int]:
 
-        where: types.UnitWhereInput = {"deletedAt": None}
+        where: types.UnitWhereInput = {
+            "deletedAt": None,
+        }
+
+        if not include_inactive:
+            where["isActive"] = True
 
         skip = (page - 1) * page_size
         order: types.UnitOrderByInput = {"createdAt": "asc"}
@@ -137,6 +142,7 @@ class UnitRepository:
         is_active: bool | None = None,
     ) -> dict[str, object]:
         data: types.UnitUpdateInput = {}
+
         if name is not None:
             data["name"] = name
         if cnpj is not None:
@@ -160,20 +166,45 @@ class UnitRepository:
         if is_active is not None:
             data["isActive"] = is_active
 
-        try:
-            row = await self._db.unit.update(where={"id": str(unit_id)}, data=data)
-        except UniqueViolationError as exc:
-            raise ConflictError(f"Unit with CNPJ {cnpj} already exists") from exc
-        if row is None:
-            raise NotFoundError(f"Unit {unit_id} not found")
-        return cast(dict[str, object], row.model_dump())
+        existing = await self._db.unit.find_first(
+            where={
+                "id": str(unit_id),
+                "deletedAt": None,
+            }
+        )
 
-    async def soft_delete(self, unit_id: UUID) -> None:
-        data: types.UnitUpdateInput = {"deletedAt": datetime.now(UTC)}
+        if existing is None:
+            raise NotFoundError(f"Unit {unit_id} not found")
+
         try:
-            await self._db.unit.update(
+            row = await self._db.unit.update(
                 where={"id": str(unit_id)},
                 data=data,
             )
-        except RecordNotFoundError as exc:
-            raise NotFoundError(f"Unit {unit_id} not found") from exc
+        except UniqueViolationError as exc:
+            raise ConflictError("Unit with the provided unique value already exists") from exc
+
+        if row is None:
+            raise NotFoundError(f"Unit {unit_id} not found")
+
+        return cast(dict[str, object], row.model_dump())
+
+    async def soft_delete(self, unit_id: UUID) -> None:
+        existing = await self._db.unit.find_first(
+            where={
+                "id": str(unit_id),
+                "deletedAt": None,
+            }
+        )
+
+        if existing is None:
+            raise NotFoundError(f"Unit {unit_id} not found")
+
+        data: types.UnitUpdateInput = {
+            "deletedAt": datetime.now(UTC),
+        }
+
+        await self._db.unit.update(
+            where={"id": str(unit_id)},
+            data=data,
+        )

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 from prisma import Prisma
 
-from src.infra.seed import ROLES, seed_roles
+from src.infra.seed import DEFAULT_UNIT, ROLES, seed_roles, seed_unit
 
 
 async def test_seed_roles_upserts_each_default_role():
@@ -25,3 +25,24 @@ async def test_seed_roles_is_idempotent_with_empty_update():
     for call in db.role.upsert.await_args_list:
         assert call.kwargs["data"]["update"] == {}
         assert set(call.kwargs["data"]["create"]) == {"name", "description"}
+
+
+async def test_seed_unit_upserts_default_unit():
+    db = AsyncMock(spec=Prisma)
+    db.unit.upsert = AsyncMock()
+
+    await seed_unit(db)
+
+    db.unit.upsert.assert_awaited_once()
+    call = db.unit.upsert.await_args
+    assert call.kwargs["where"] == {"cnpj": DEFAULT_UNIT["cnpj"]}
+    assert call.kwargs["data"]["create"] == DEFAULT_UNIT
+
+
+async def test_seed_unit_is_idempotent_with_empty_update():
+    db = AsyncMock(spec=Prisma)
+    db.unit.upsert = AsyncMock()
+
+    await seed_unit(db)
+
+    assert db.unit.upsert.await_args.kwargs["data"]["update"] == {}
