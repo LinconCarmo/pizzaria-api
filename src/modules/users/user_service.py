@@ -6,12 +6,12 @@ from src.core.security import hash_password
 from src.modules.users.user_repository import UserRepositoryProtocol
 from src.modules.users.user_schema import (
     CreateUserRequest,
-    PaginationMeta,
     UpdateUserRequest,
     UserListResponse,
     UserResponse,
     UserRole,
 )
+from src.shared.types import PaginationMeta
 
 
 class UserService:
