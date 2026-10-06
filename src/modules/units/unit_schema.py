@@ -37,9 +37,31 @@ UF = Literal[
 ]
 
 
+def normalize_cnpj(value: str) -> str:
+    value = value.upper()
+
+    if (
+        len(value) == 18
+        and value[2] == "."
+        and value[6] == "."
+        and value[10] == "/"
+        and value[15] == "-"
+    ):
+        return value.replace(".", "").replace("/", "").replace("-", "")
+
+    if len(value) == 14:
+        return value
+
+    raise ValueError("Invalid CNPJ format")
+
+
 def validate_cnpj(value: str) -> str:
-    if len(value) != 14 or not value.isdigit():
-        raise ValueError("CNPJ must contain 14 digits")
+    if (
+        len(value) != 14
+        or not all(("A" <= char <= "Z") or ("0" <= char <= "9") for char in value[:12])
+        or not all("0" <= char <= "9" for char in value[12:])
+    ):
+        raise ValueError("CNPJ must contain 12 alphanumeric characters and 2 digits")
 
     if value == value[0] * 14:
         raise ValueError("Invalid CNPJ")
@@ -48,7 +70,7 @@ def validate_cnpj(value: str) -> str:
     second_weights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
 
     first_sum = sum(
-        int(digit) * weight for digit, weight in zip(value[:12], first_weights, strict=True)
+        (ord(digit) - 48) * weight for digit, weight in zip(value[:12], first_weights, strict=True)
     )
 
     first_remainder = first_sum % 11
@@ -58,7 +80,7 @@ def validate_cnpj(value: str) -> str:
         raise ValueError("Invalid CNPJ")
 
     second_sum = sum(
-        int(digit) * weight for digit, weight in zip(value[:13], second_weights, strict=True)
+        (ord(digit) - 48) * weight for digit, weight in zip(value[:13], second_weights, strict=True)
     )
 
     second_remainder = second_sum % 11
@@ -68,6 +90,13 @@ def validate_cnpj(value: str) -> str:
         raise ValueError("Invalid CNPJ")
 
     return value
+
+
+def _normalize_and_validate_cnpj(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("CNPJ must be a string")
+    normalized = normalize_cnpj(value)
+    return validate_cnpj(normalized)
 
 
 class _BaseSchema(BaseModel):
@@ -85,7 +114,7 @@ class CreateUnitRequest(BaseModel):
     cnpj: str = Field(
         ...,
         description="Unit CNPJ",
-        examples=["12345678000195"],
+        examples=["12345678000195", "12ABC34501DE35"],
     )
     email: EmailStr = Field(
         ...,
@@ -143,10 +172,10 @@ class CreateUnitRequest(BaseModel):
         examples=["80000000"],
     )
 
-    @field_validator("cnpj")
+    @field_validator("cnpj", mode="before")
     @classmethod
-    def validate_cnpj_field(cls, value: str) -> str:
-        return validate_cnpj(value)
+    def validate_cnpj_field(cls, value: object) -> str:
+        return _normalize_and_validate_cnpj(value)
 
     @field_validator("zip")
     @classmethod
@@ -157,7 +186,11 @@ class CreateUnitRequest(BaseModel):
 class UpdateUnitRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    cnpj: str | None = Field(default=None)
+    cnpj: str | None = Field(
+        default=None,
+        description="Unit CNPJ",
+        examples=["12345678000195", "12ABC34501DE35"],
+    )
     email: EmailStr | None = Field(default=None)
     phone: str | None = Field(default=None, min_length=1, max_length=20)
     street: str | None = Field(
@@ -204,13 +237,12 @@ class UpdateUnitRequest(BaseModel):
     )
     is_active: bool | None = None
 
-    @field_validator("cnpj")
+    @field_validator("cnpj", mode="before")
     @classmethod
     def validate_cnpj_field(cls, value: str | None) -> str | None:
         if value is None:
             return None
-
-        return validate_cnpj(value)
+        return _normalize_and_validate_cnpj(value)
 
     @field_validator("zip")
     @classmethod

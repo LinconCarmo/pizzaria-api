@@ -13,6 +13,8 @@ pytestmark = pytest.mark.integration
 
 NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
 ADMIN_USER_ID = "00000000-0000-4000-8000-000000000001"
+ALPHANUMERIC_CNPJ = "12ABC34501DE35"
+MASKED_ALPHANUMERIC_CNPJ = "12.ABC.345/01DE-35"
 
 
 def _admin_headers() -> dict[str, str]:
@@ -66,6 +68,28 @@ async def test_post_units_creates_unit_in_db_when_payload_valid(
 
     assert persisted is not None
     assert persisted.name == payload["name"]
+
+
+async def test_post_units_normalizes_masked_alphanumeric_cnpj(
+    client: AsyncClient,
+    db: Prisma,
+) -> None:
+    payload = make_create_unit_request().model_dump(mode="json")
+    payload["cnpj"] = MASKED_ALPHANUMERIC_CNPJ.lower()
+
+    response = await client.post(
+        "/api/v1/units",
+        json=payload,
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["cnpj"] == ALPHANUMERIC_CNPJ
+
+    persisted = await db.unit.find_unique(where={"cnpj": ALPHANUMERIC_CNPJ})
+
+    assert persisted is not None
+    assert persisted.cnpj == ALPHANUMERIC_CNPJ
 
 
 async def test_post_units_returns_403_when_user_is_not_admin(
@@ -243,6 +267,27 @@ async def test_patch_unit_updates_only_provided_fields(
     assert persisted is not None
     assert persisted.name == "Unidade Nova"
     assert persisted.cnpj == "11222333000181"
+
+
+async def test_patch_unit_normalizes_masked_alphanumeric_cnpj(
+    client: AsyncClient,
+    db: Prisma,
+) -> None:
+    created = await _create_unit(client, cnpj="11222333000181")
+
+    response = await client.patch(
+        f"/api/v1/units/{created['id']}",
+        json={"cnpj": MASKED_ALPHANUMERIC_CNPJ.lower()},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["cnpj"] == ALPHANUMERIC_CNPJ
+
+    persisted = await db.unit.find_unique(where={"id": created["id"]})
+
+    assert persisted is not None
+    assert persisted.cnpj == ALPHANUMERIC_CNPJ
 
 
 async def test_patch_unit_returns_404_when_id_not_found(
