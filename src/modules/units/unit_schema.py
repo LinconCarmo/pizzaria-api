@@ -38,7 +38,7 @@ UF = Literal[
 
 
 def normalize_cnpj(value: str) -> str:
-    value = value.upper()
+    value = value.strip().upper()
 
     if (
         len(value) == 18
@@ -239,7 +239,7 @@ class UpdateUnitRequest(BaseModel):
 
     @field_validator("cnpj", mode="before")
     @classmethod
-    def validate_cnpj_field(cls, value: str | None) -> str | None:
+    def validate_cnpj_field(cls, value: object) -> str | None:
         if value is None:
             return None
         return _normalize_and_validate_cnpj(value)

@@ -1,4 +1,6 @@
 from test.factories.unit_factory import (
+    ALPHANUMERIC_CNPJ,
+    MASKED_ALPHANUMERIC_CNPJ,
     make_create_unit_request,
     make_unit_row,
 )
@@ -12,6 +14,8 @@ from test.factories.user_factory import (
 )
 
 __all__ = [
+    "ALPHANUMERIC_CNPJ",
+    "MASKED_ALPHANUMERIC_CNPJ",
     "NOW",
     "make_create_unit_request",
     "make_create_user_request",

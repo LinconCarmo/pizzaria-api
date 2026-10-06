@@ -6,15 +6,17 @@ from prisma import Prisma
 
 from src.core.security import create_access_token
 from src.infra.seed import DEFAULT_UNIT
-from test.factories import make_create_unit_request
+from test.factories import (
+    ALPHANUMERIC_CNPJ,
+    MASKED_ALPHANUMERIC_CNPJ,
+    make_create_unit_request,
+)
 
 pytestmark = pytest.mark.integration
 
 
 NON_EXISTENT_ID = UUID("00000000-0000-4000-8000-0000000000ff")
 ADMIN_USER_ID = "00000000-0000-4000-8000-000000000001"
-ALPHANUMERIC_CNPJ = "12ABC34501DE35"
-MASKED_ALPHANUMERIC_CNPJ = "12.ABC.345/01DE-35"
 
 
 def _admin_headers() -> dict[str, str]:

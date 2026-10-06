@@ -7,6 +7,8 @@ from src.modules.units.unit_schema import (
 
 NOW = datetime(2026, 5, 20, 12, 0, 0, tzinfo=UTC)
 DEFAULT_UNIT_ID = UUID("00000000-0000-4000-8000-000000000002")
+ALPHANUMERIC_CNPJ = "12ABC34501DE35"
+MASKED_ALPHANUMERIC_CNPJ = "12.ABC.345/01DE-35"
 
 
 def make_unit_row(

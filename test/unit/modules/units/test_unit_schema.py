@@ -6,10 +6,12 @@ from src.modules.units.unit_schema import (
     UnitResponse,
     UpdateUnitRequest,
 )
-from test.factories import make_create_unit_request, make_unit_row
-
-ALPHANUMERIC_CNPJ = "12ABC34501DE35"
-MASKED_ALPHANUMERIC_CNPJ = "12.ABC.345/01DE-35"
+from test.factories import (
+    ALPHANUMERIC_CNPJ,
+    MASKED_ALPHANUMERIC_CNPJ,
+    make_create_unit_request,
+    make_unit_row,
+)
 
 
 def test_create_unit_request_accepts_valid_data():
@@ -61,6 +63,16 @@ def test_create_unit_request_normalizes_masked_lowercase_cnpj():
 
 @pytest.mark.parametrize(
     "cnpj",
+    [f" {ALPHANUMERIC_CNPJ}", f"{ALPHANUMERIC_CNPJ} "],
+)
+def test_create_unit_request_strips_cnpj_whitespace(cnpj):
+    result = make_create_unit_request(cnpj=cnpj)
+
+    assert result.cnpj == ALPHANUMERIC_CNPJ
+
+
+@pytest.mark.parametrize(
+    "cnpj",
     ["12-ABC.345/01DE-35", "12ABC34501DE3A", "12ABC34501DE36"],
 )
 def test_create_unit_request_rejects_invalid_alphanumeric_cnpj(cnpj):
@@ -93,6 +105,16 @@ def test_update_unit_request_normalizes_masked_alphanumeric_cnpj():
     assert result.cnpj == ALPHANUMERIC_CNPJ
 
 
+@pytest.mark.parametrize(
+    "cnpj",
+    [f" {ALPHANUMERIC_CNPJ}", f"{ALPHANUMERIC_CNPJ} "],
+)
+def test_update_unit_request_strips_cnpj_whitespace(cnpj):
+    result = UpdateUnitRequest(cnpj=cnpj)
+
+    assert result.cnpj == ALPHANUMERIC_CNPJ
+
+
 def test_update_unit_request_rejects_invalid_alphanumeric_cnpj_checksum():
     with pytest.raises(ValidationError):
         UpdateUnitRequest(cnpj="12ABC34501DE36")
@@ -101,6 +123,11 @@ def test_update_unit_request_rejects_invalid_alphanumeric_cnpj_checksum():
 def test_update_unit_request_rejects_invalid_cnpj():
     with pytest.raises(ValidationError):
         UpdateUnitRequest(cnpj="12345678000019")
+
+
+def test_update_unit_request_rejects_non_string_cnpj() -> None:
+    with pytest.raises(ValidationError):
+        UpdateUnitRequest(cnpj=12345678000195)
 
 
 def test_unit_response_accepts_repository_data():
