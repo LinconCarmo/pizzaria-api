@@ -1,15 +1,27 @@
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
+from jose import jwt
 
+from src.core.config import settings
 from src.core.exceptions import ForbiddenError, UnauthorizedError
 from src.core.security import create_access_token, create_refresh_token
 from src.core.security_dependencies import (
+    ADMIN_ROLE,
     AuthenticatedUser,
     get_current_user,
+    require_admin,
     require_role,
 )
+
+STAFF_ROLE = "STAFF"
+
+
+def _encode(claims: dict[str, object]) -> str:
+    payload = {"exp": datetime.now(UTC) + timedelta(minutes=15), **claims}
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
 def _credentials(token: str) -> HTTPAuthorizationCredentials:
@@ -63,3 +75,30 @@ def test_require_role_raises_forbidden_for_other_role() -> None:
 
     with pytest.raises(ForbiddenError):
         guard(user)
+
+
+def test_get_current_user_raises_when_role_claim_missing() -> None:
+    token = _encode({"sub": str(uuid4()), "token_type": "access"})
+
+    with pytest.raises(UnauthorizedError):
+        get_current_user(_credentials(token))
+
+
+def test_get_current_user_raises_when_sub_is_not_uuid() -> None:
+    token = _encode({"sub": "not-a-uuid", "role": ADMIN_ROLE, "token_type": "access"})
+
+    with pytest.raises(UnauthorizedError):
+        get_current_user(_credentials(token))
+
+
+def test_require_admin_allows_admin() -> None:
+    user = AuthenticatedUser(user_id=uuid4(), role=ADMIN_ROLE)
+
+    assert require_admin(user) is user
+
+
+def test_require_admin_raises_forbidden_for_staff() -> None:
+    user = AuthenticatedUser(user_id=uuid4(), role=STAFF_ROLE)
+
+    with pytest.raises(ForbiddenError):
+        require_admin(user)

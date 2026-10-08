@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from src.core.exceptions import ErrorResponse
-from src.modules.auth.auth_dependencies import AuthenticatedUser, require_admin
+from src.core.security_dependencies import AuthenticatedUser, require_admin
 from src.modules.units.unit_dependencies import get_unit_service
 from src.modules.units.unit_schema import (
     CreateUnitRequest,

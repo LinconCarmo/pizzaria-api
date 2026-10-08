@@ -5,13 +5,11 @@ from fastapi import Depends
 from prisma import Prisma
 
 from src.core.exceptions import ForbiddenError
-from src.core.security_dependencies import AuthenticatedUser, get_current_user, require_role
+from src.core.security_dependencies import AuthenticatedUser, get_current_user
 from src.infra.database import get_db
 from src.modules.users.user_repository import UserRepository, UserRepositoryProtocol
 from src.modules.users.user_schema import UserRole
 from src.modules.users.user_service import UserService
-
-require_admin = require_role(UserRole.ADMIN.value)
 
 
 def require_admin_or_self(
