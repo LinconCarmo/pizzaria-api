@@ -181,7 +181,7 @@ Definições canônicas em `[tool.poe.tasks]` de [`pyproject.toml`](../../pyproj
 | Prisma — migrar (dev)      | `poe prisma-migrate-create`                        |
 | Prisma — deploy migrations | `poe prisma-deploy`                                |
 | Dev server                 | `poe start-dev`                                    |
-| Pipeline CI local          | `poe ci` (lint → format-check → type-check → test) |
+| Pipeline CI local          | `poe ci` (prisma-generate → lint → format-check → type-check → test-cov) |
 | Instalar pre-commit        | `poe pre-commit-install`                           |
 
 ---

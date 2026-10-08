@@ -49,8 +49,8 @@ help = "alias for test"
 ref  = "test"
 
 [tool.poe.tasks.ci]
-help     = "lint + format-check + type-check + test"
-sequence = ["lint", "format-check", "type-check", "test"]
+help     = "prisma-generate + lint + format-check + type-check + test-cov (falha abaixo do piso de cobertura)"
+sequence = ["prisma-generate", "lint", "format-check", "type-check", "test-cov"]
 
 [tool.ruff]
 line-length = 100
@@ -133,6 +133,7 @@ omit = [
 ]
 
 [tool.coverage.report]
+fail_under = 80
 show_missing = true
 skip_covered = false
 exclude_lines = [
