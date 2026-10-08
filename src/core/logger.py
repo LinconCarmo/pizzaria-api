@@ -62,10 +62,7 @@ def _redact(value: Any) -> Any:
 def _patcher(record: "Record") -> None:
     extra = record.get("extra")
     if isinstance(extra, dict):
-        redacted = {
-            k: (REDACTED if isinstance(k, str) and k.lower() in SENSITIVE_KEYS else _redact(v))
-            for k, v in extra.items()
-        }
+        redacted = _redact(extra)
         record["extra"] = redacted
         extra = redacted
 

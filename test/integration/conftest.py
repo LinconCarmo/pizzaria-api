@@ -8,6 +8,8 @@ from httpx import ASGITransport, AsyncClient
 from prisma import Prisma
 from testcontainers.mysql import MySqlContainer
 
+from src.core.rate_limit import rate_limiter
+from src.infra.email.email_service import EmailServiceProtocol
 from src.infra.seed import DEFAULT_UNIT
 from src.infra.seed import seed_roles as seed_default_roles
 from src.infra.seed import seed_unit as seed_default_unit
@@ -59,6 +61,8 @@ async def seed_roles(db: Prisma) -> None:
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database(db: Prisma) -> AsyncGenerator[None]:
+    rate_limiter.clear()
+
     yield
 
     await db.user.delete_many()
@@ -68,15 +72,30 @@ async def clean_database(db: Prisma) -> AsyncGenerator[None]:
     )
 
 
+class FakeEmailService(EmailServiceProtocol):
+    """E-mail sempre disponível nos testes; guarda o que seria enviado."""
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, str]] = []
+
+    def is_available(self) -> bool:
+        return True
+
+    async def send_password_reset_email(self, email: str, token: str) -> None:
+        self.sent.append((email, token))
+
+
 @pytest_asyncio.fixture(scope="session")
 async def client(db: Prisma) -> AsyncGenerator[AsyncClient]:
     from src.infra.database import get_db
+    from src.infra.email.email_dependencies import get_email_service
     from src.main import app
 
     def _override_db() -> Prisma:
         return db
 
     app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_email_service] = FakeEmailService
 
     transport = ASGITransport(app=app)
 

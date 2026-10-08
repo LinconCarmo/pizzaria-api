@@ -9,6 +9,7 @@ from src.core.exceptions import (
     ConflictError,
     DomainError,
     NotFoundError,
+    TooManyRequestsError,
     UnauthorizedError,
     domain_error_handler,
     generic_exception_handler,
@@ -107,6 +108,26 @@ def test_domain_error_handler_returns_correct_payload_for_unauthorized():
 
     assert resp.status_code == 401
     assert resp.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_domain_error_handler_returns_429_with_retry_after_header():
+    app, client = _app_with_domain_handler()
+
+    @app.get("/limited")
+    async def _():
+        raise TooManyRequestsError(retry_after_seconds=30)
+
+    resp = client.get("/limited")
+
+    assert resp.status_code == 429
+    assert resp.headers["Retry-After"] == "30"
+    assert resp.json()["error"]["details"] == {"retry_after_seconds": 30}
+
+
+def test_domain_error_str_returns_message():
+    error = NotFoundError("User 1 not found")
+
+    assert str(error) == "User 1 not found"
 
 
 # ---------------------------------------------------------------------------

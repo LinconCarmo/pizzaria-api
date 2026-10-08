@@ -41,14 +41,15 @@ docker compose up -d
 
 # Banco
 uv run poe prisma-migrate-create   # gera a migration (--create-only)
-uv run poe prisma-migrate-run       # aplica as migrations pendentes
-uv run poe prisma-seed              # semeia os roles padrão (idempotente)
+uv run poe db-setup                 # aplica as migrations pendentes e semeia roles/unidade (idempotente)
 
 # Dev server
 uv run poe start-dev
 ```
 
 Após `start-dev`, Swagger/OpenAPI disponível em <http://127.0.0.1:8000/docs>.
+
+O seed não roda no startup. Em todo ambiente novo, e depois de cada deploy com migration, `poe db-setup` precisa rodar antes de subir a API. Sem os roles, a API sobe, mas registra o aviso `roles_not_seeded` e o cadastro de usuários falha.
 
 ## Comandos do dia-a-dia
 
@@ -85,6 +86,37 @@ JWT_SECRET=change_me
 APP_ENV=development
 LOG_LEVEL=debug
 ```
+
+### E-mail (reset de senha)
+
+O envio de e-mail já está implementado e liga sozinho quando `SMTP_HOST` e `SMTP_SENDER` estão definidos. Sem as duas, em qualquer ambiente, a aplicação sobe normalmente e registra o aviso `email_delivery_disabled` no startup. O pedido de reset de senha (`POST /api/v1/auth/forgot-password`) responde `503` com o código `FEATURE_UNAVAILABLE`, informando que a funcionalidade não está disponível.
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=usuario
+SMTP_PASSWORD=senha
+SMTP_SENDER=no-reply@pizzaria.com
+SMTP_USE_TLS=true
+# Opcional: com a URL, o e-mail leva o link <url>?token=<token>; sem ela, só o token.
+PASSWORD_RESET_URL=https://app.pizzaria.com/reset-password
+```
+
+## Imagem Docker
+
+O [`Dockerfile`](Dockerfile) gera a imagem da API, que roda como usuário sem privilégio e traz healthcheck em `/health`. O deploy tem dois passos, na ordem:
+
+```bash
+docker build -t pizzaria-api .
+
+# 1. Banco: aplica migrations pendentes e semeia roles/unidade (idempotente)
+docker run --rm --env-file .env pizzaria-api ./scripts/db-setup.sh
+
+# 2. API
+docker run -d --env-file .env -p 8000:8000 pizzaria-api
+```
+
+O `DATABASE_URL` do `.env` precisa apontar para um host que o container alcance; `localhost` aponta para o próprio container.
 
 ## Estrutura do projeto
 

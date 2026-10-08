@@ -1,11 +1,9 @@
-from typing import Annotated, TypedDict
+from typing import Annotated
 
-from fastapi import Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, Request
 from prisma import Prisma
 
-from src.core.exceptions import ForbiddenError, UnauthorizedError
-from src.core.security import decode_token
+from src.core.rate_limit import RateLimiterProtocol, RateLimitPolicy, get_rate_limiter
 from src.infra.database import get_db
 from src.infra.email.email_dependencies import get_email_service
 from src.infra.email.email_service import EmailServiceProtocol
@@ -19,47 +17,39 @@ from src.modules.users.user_repository import (
     UserRepositoryProtocol,
 )
 
-_bearer_scheme = HTTPBearer(auto_error=False)
+LOGIN_PER_IP = RateLimitPolicy(max_attempts=20, window_seconds=60)
+
+FORGOT_PASSWORD_PER_IP = RateLimitPolicy(max_attempts=5, window_seconds=15 * 60)
 
 
-class AuthenticatedUser(TypedDict):
-    sub: str
-    role: str
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client is not None else "unknown"
 
 
-def get_current_user(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None,
-        Depends(_bearer_scheme),
-    ],
-) -> AuthenticatedUser:
-    if credentials is None:
-        raise UnauthorizedError("Authentication required")
-
-    payload = decode_token(credentials.credentials)
-
-    if payload.get("token_type") != "access":
-        raise UnauthorizedError("Invalid token type")
-
-    sub = payload.get("sub")
-    role = payload.get("role")
-
-    if not isinstance(sub, str) or not isinstance(role, str):
-        raise UnauthorizedError("Invalid token claims")
-
-    return {
-        "sub": sub,
-        "role": role,
-    }
+def _limit_by_ip(
+    request: Request,
+    limiter: RateLimiterProtocol,
+    *,
+    scope: str,
+    policy: RateLimitPolicy,
+) -> None:
+    key = f"{scope}:ip:{_client_ip(request)}"
+    limiter.check(key, policy)
+    limiter.record(key, policy)
 
 
-def require_admin(
-    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-) -> AuthenticatedUser:
-    if current_user["role"] != "ADMIN":
-        raise ForbiddenError("Admin role required")
+async def limit_login_by_ip(
+    request: Request,
+    limiter: Annotated[RateLimiterProtocol, Depends(get_rate_limiter)],
+) -> None:
+    _limit_by_ip(request, limiter, scope="login", policy=LOGIN_PER_IP)
 
-    return current_user
+
+async def limit_forgot_password_by_ip(
+    request: Request,
+    limiter: Annotated[RateLimiterProtocol, Depends(get_rate_limiter)],
+) -> None:
+    _limit_by_ip(request, limiter, scope="forgot-password", policy=FORGOT_PASSWORD_PER_IP)
 
 
 def get_auth_repository(
@@ -87,9 +77,14 @@ def get_auth_service(
         EmailServiceProtocol,
         Depends(get_email_service),
     ],
+    rate_limiter: Annotated[
+        RateLimiterProtocol,
+        Depends(get_rate_limiter),
+    ],
 ) -> AuthService:
     return AuthService(
         repository,
         password_reset_repository,
         email_service,
+        rate_limiter,
     )

@@ -1,24 +1,22 @@
 [project]
 name = "pizzaria-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "API de gestão de usuários, unidades, produtos e pedidos de pizzaria"
 readme = "README.md"
 requires-python = ">=3.13.1"
 dependencies = [
     "email-validator>=2.2.0",
     "fastapi[standard]>=0.136.1",
-    "httpx>=0.28.1",
     "loguru>=0.7.3",
-    "bcrypt>=4.0,<5.0",
-    "passlib[argon2,bcrypt]>=1.7.4",
     "prisma>=0.15.0",
+    "pwdlib[argon2]>=0.2.1",
     "pydantic-settings>=2.14.1",
-    "pytest>=9.0.3",
-    "python-jose[cryptography]>=3.5.0",
+    "pyjwt>=2.10.1",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "mypy>=2.1.0",
     "poethepoet>=0.30.0",
     "pre-commit>=4.6.0",
@@ -27,8 +25,6 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.15.12",
     "testcontainers[mysql]",
-    "types-python-jose>=3.5.0.20260408",
-
 ]
 
 [tool.poe.tasks]
@@ -37,7 +33,7 @@ prisma-generate         = { cmd = "prisma generate --schema=src/infra/prisma/sch
 prisma-migrate-reset    = { cmd = "prisma migrate reset --schema=src/infra/prisma/schema.prisma",                  help = "Reset database (drop, recreate, re-apply all migrations)" }
 prisma-migrate-create   = { cmd = "prisma migrate dev --schema=src/infra/prisma/schema.prisma --create-only",                    help = "Create migration without applying (--create-only)" }
 prisma-migrate-run      = { cmd = "prisma migrate deploy --schema=src/infra/prisma/schema.prisma",                 help = "Apply pending migrations (no schema changes)" }
-prisma-seed             = { cmd = "python -m src.infra.seed",                                                       help = "Seed default roles (idempotent)" }
+prisma-seed             = { cmd = "python -m src.infra.seed",                                                       help = "Seed default roles and unit (idempotent)" }
 lint                    = { cmd = "ruff check src test",                                                           help = "ruff check" }
 format                  = { cmd = "ruff format src test",                                                          help = "ruff format (apply)" }
 format-check            = { cmd = "ruff format --check src test",                                                  help = "ruff format --check" }
@@ -52,9 +48,13 @@ pre-commit-install      = { cmd = "pre-commit install",                         
 help = "alias for test"
 ref  = "test"
 
+[tool.poe.tasks.db-setup]
+help     = "deploy step: apply pending migrations, then seed default roles/unit (idempotent)"
+sequence = ["prisma-migrate-run", "prisma-seed"]
+
 [tool.poe.tasks.ci]
-help     = "lint + format-check + type-check + test"
-sequence = ["lint", "format-check", "type-check", "test"]
+help     = "prisma-generate + lint + format-check + type-check + test-cov (falha abaixo do piso de cobertura)"
+sequence = ["prisma-generate", "lint", "format-check", "type-check", "test-cov"]
 
 [tool.ruff]
 line-length = 100
@@ -110,7 +110,7 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["passlib.*", "prisma.*", "uvicorn"]
+module = ["prisma.*", "uvicorn"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -137,6 +137,7 @@ omit = [
 ]
 
 [tool.coverage.report]
+fail_under = 80
 show_missing = true
 skip_covered = false
 exclude_lines = [

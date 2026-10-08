@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Final
 from uuid import UUID
 
 from fastapi import Depends
@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from src.core.exceptions import ForbiddenError, UnauthorizedError
 from src.core.security import decode_token
+
+ADMIN_ROLE: Final = "ADMIN"
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -33,7 +35,12 @@ def get_current_user(
     if not isinstance(sub, str) or not isinstance(role, str):
         raise UnauthorizedError("Invalid token payload")
 
-    return AuthenticatedUser(user_id=UUID(sub), role=role)
+    try:
+        user_id = UUID(sub)
+    except ValueError as exc:
+        raise UnauthorizedError("Invalid token payload") from exc
+
+    return AuthenticatedUser(user_id=user_id, role=role)
 
 
 def require_role(*allowed: str) -> Callable[[AuthenticatedUser], AuthenticatedUser]:
@@ -45,3 +52,6 @@ def require_role(*allowed: str) -> Callable[[AuthenticatedUser], AuthenticatedUs
         return user
 
     return _guard
+
+
+require_admin = require_role(ADMIN_ROLE)

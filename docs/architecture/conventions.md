@@ -179,9 +179,10 @@ Definições canônicas em `[tool.poe.tasks]` de [`pyproject.toml`](../../pyproj
 | Prisma — formatar schema   | `poe prisma-format`                                |
 | Prisma — gerar client      | `poe prisma-generate`                              |
 | Prisma — migrar (dev)      | `poe prisma-migrate-create`                        |
-| Prisma — deploy migrations | `poe prisma-deploy`                                |
+| Prisma — deploy migrations | `poe prisma-migrate-run`                           |
+| Deploy do banco (migrations + seed) | `poe db-setup`                            |
 | Dev server                 | `poe start-dev`                                    |
-| Pipeline CI local          | `poe ci` (lint → format-check → type-check → test) |
+| Pipeline CI local          | `poe ci` (prisma-generate → lint → format-check → type-check → test-cov) |
 | Instalar pre-commit        | `poe pre-commit-install`                           |
 
 ---

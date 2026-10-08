@@ -4,10 +4,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from src.core.exceptions import ErrorResponse, ForbiddenError
-from src.core.security_dependencies import AuthenticatedUser
+from src.core.security_dependencies import AuthenticatedUser, require_admin
 from src.modules.users.user_dependencies import (
     get_user_service,
-    require_admin,
     require_admin_or_self,
 )
 from src.modules.users.user_schema import (
