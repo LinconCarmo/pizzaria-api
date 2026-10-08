@@ -33,7 +33,7 @@ prisma-generate         = { cmd = "prisma generate --schema=src/infra/prisma/sch
 prisma-migrate-reset    = { cmd = "prisma migrate reset --schema=src/infra/prisma/schema.prisma",                  help = "Reset database (drop, recreate, re-apply all migrations)" }
 prisma-migrate-create   = { cmd = "prisma migrate dev --schema=src/infra/prisma/schema.prisma --create-only",                    help = "Create migration without applying (--create-only)" }
 prisma-migrate-run      = { cmd = "prisma migrate deploy --schema=src/infra/prisma/schema.prisma",                 help = "Apply pending migrations (no schema changes)" }
-prisma-seed             = { cmd = "python -m src.infra.seed",                                                       help = "Seed default roles (idempotent)" }
+prisma-seed             = { cmd = "python -m src.infra.seed",                                                       help = "Seed default roles and unit (idempotent)" }
 lint                    = { cmd = "ruff check src test",                                                           help = "ruff check" }
 format                  = { cmd = "ruff format src test",                                                          help = "ruff format (apply)" }
 format-check            = { cmd = "ruff format --check src test",                                                  help = "ruff format --check" }
@@ -47,6 +47,10 @@ pre-commit-install      = { cmd = "pre-commit install",                         
 [tool.poe.tasks.test-unit]
 help = "alias for test"
 ref  = "test"
+
+[tool.poe.tasks.db-setup]
+help     = "deploy step: apply pending migrations, then seed default roles/unit (idempotent)"
+sequence = ["prisma-migrate-run", "prisma-seed"]
 
 [tool.poe.tasks.ci]
 help     = "prisma-generate + lint + format-check + type-check + test-cov (falha abaixo do piso de cobertura)"

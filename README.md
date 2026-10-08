@@ -41,14 +41,15 @@ docker compose up -d
 
 # Banco
 uv run poe prisma-migrate-create   # gera a migration (--create-only)
-uv run poe prisma-migrate-run       # aplica as migrations pendentes
-uv run poe prisma-seed              # semeia os roles padrão (idempotente)
+uv run poe db-setup                 # aplica as migrations pendentes e semeia roles/unidade (idempotente)
 
 # Dev server
 uv run poe start-dev
 ```
 
 Após `start-dev`, Swagger/OpenAPI disponível em <http://127.0.0.1:8000/docs>.
+
+O seed não roda no startup. Em todo ambiente novo, e depois de cada deploy com migration, `poe db-setup` precisa rodar antes de subir a API. Sem os roles, a API sobe, mas registra o aviso `roles_not_seeded` e o cadastro de usuários falha.
 
 ## Comandos do dia-a-dia
 
