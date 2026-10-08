@@ -1,8 +1,13 @@
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import NamedTuple
 from uuid import UUID, uuid4
 
-from src.core.exceptions import BadRequestError, ForbiddenError, UnauthorizedError
+from src.core.exceptions import (
+    BadRequestError,
+    ForbiddenError,
+    InternalError,
+    UnauthorizedError,
+)
 from src.core.logger import logger
 from src.core.rate_limit import RateLimiterProtocol, RateLimitPolicy
 from src.core.security import (
@@ -38,6 +43,12 @@ LOGIN_FAILURES_PER_EMAIL = RateLimitPolicy(max_attempts=5, window_seconds=15 * 6
 FORGOT_PASSWORD_PER_EMAIL = RateLimitPolicy(max_attempts=3, window_seconds=60 * 60)
 
 
+class _UserIdentity(NamedTuple):
+    user_id: UUID
+    name: str
+    role: str
+
+
 class AuthService:
     def __init__(
         self,
@@ -63,32 +74,9 @@ class AuthService:
         if user is None:
             raise self._login_failed(rate_limit_key)
 
-        hashed_password = cast(
-            str,
-            user["hashedPassword"],
-        )
+        hashed_password = user["hashedPassword"]
 
-        role_data = cast(
-            dict[str, object],
-            user["role"],
-        )
-
-        role = cast(
-            str,
-            role_data["name"],
-        )
-
-        user_id = cast(
-            UUID,
-            user["id"],
-        )
-
-        user_name = cast(
-            str,
-            user["name"],
-        )
-
-        if not verify_password(
+        if not isinstance(hashed_password, str) or not verify_password(
             data.password,
             hashed_password,
         ):
@@ -99,11 +87,7 @@ class AuthService:
 
         self._rate_limiter.reset(rate_limit_key)
 
-        return self._issue_tokens(
-            user_id=user_id,
-            name=user_name,
-            role=role,
-        )
+        return self._issue_tokens(self._identity_from(user))
 
     async def refresh_token(
         self,
@@ -134,30 +118,9 @@ class AuthService:
             raise UnauthorizedError(_INVALID_TOKEN_MESSAGE)
 
         if not user["isActive"]:
-            raise ForbiddenError(
-                "User is inactive",
-            )
+            raise ForbiddenError(_INACTIVE_USER_MESSAGE)
 
-        role_data = cast(
-            dict[str, object],
-            user["role"],
-        )
-
-        role = cast(
-            str,
-            role_data["name"],
-        )
-
-        user_name = cast(
-            str,
-            user["name"],
-        )
-
-        return self._issue_tokens(
-            user_id=user_id,
-            name=user_name,
-            role=role,
-        )
+        return self._issue_tokens(self._identity_from(user))
 
     async def forgot_password(
         self,
@@ -173,7 +136,7 @@ class AuthService:
             hash_password(str(uuid4()))
             return
 
-        user_id = cast(UUID, user["id"])
+        user_id = UUID(str(user["id"]))
 
         logger.bind(user_id=user_id).info(
             "password_reset_requested",
@@ -203,25 +166,31 @@ class AuthService:
         self._rate_limiter.record(rate_limit_key, LOGIN_FAILURES_PER_EMAIL)
         return UnauthorizedError(_INVALID_CREDENTIALS_MESSAGE)
 
-    def _issue_tokens(
-        self,
-        *,
-        user_id: UUID,
-        name: str,
-        role: str,
-    ) -> LoginResponseDto:
+    def _identity_from(self, user: dict[str, object]) -> _UserIdentity:
+        role = user.get("role")
+        if not isinstance(role, dict):
+            logger.bind(user_id=user.get("id")).error("user_role_relation_missing")
+            raise InternalError()
+
+        return _UserIdentity(
+            user_id=UUID(str(user["id"])),
+            name=str(user["name"]),
+            role=str(role["name"]),
+        )
+
+    def _issue_tokens(self, identity: _UserIdentity) -> LoginResponseDto:
         return LoginResponseDto(
             user=LoginUserResponse(
-                id=user_id,
-                name=name,
-                role=role,
+                id=identity.user_id,
+                name=identity.name,
+                role=identity.role,
             ),
             access_token=create_access_token(
-                sub=str(user_id),
-                role=role,
+                sub=str(identity.user_id),
+                role=identity.role,
             ),
             refresh_token=create_refresh_token(
-                sub=str(user_id),
+                sub=str(identity.user_id),
             ),
             expires_in=900,
         )
@@ -241,16 +210,12 @@ class AuthService:
         if reset_token["usedAt"] is not None:
             raise BadRequestError(_INVALID_TOKEN_MESSAGE)
 
-        now = datetime.now(UTC)
-        expires_at = cast(
-            datetime,
-            reset_token["expiresAt"],
-        )
+        expires_at = reset_token["expiresAt"]
 
-        if expires_at < now:
+        if not isinstance(expires_at, datetime) or expires_at < datetime.now(UTC):
             raise BadRequestError(_INVALID_TOKEN_MESSAGE)
 
-        reset_user_id = cast(UUID, reset_token["userId"])
+        reset_user_id = UUID(str(reset_token["userId"]))
 
         user = await self._repository.get_by_id(
             reset_user_id,
@@ -264,12 +229,9 @@ class AuthService:
 
         hashed_password = hash_password(data.new_password)
 
-        user_id = cast(
-            UUID,
-            user["id"],
-        )
+        user_id = UUID(str(user["id"]))
 
-        token_id = cast(UUID, reset_token["id"])
+        token_id = UUID(str(reset_token["id"]))
 
         await self._password_reset_repository.reset_password(
             user_id=user_id,
