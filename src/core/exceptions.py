@@ -112,6 +112,15 @@ class TooManyRequestsError(DomainError):
         )
 
 
+class ServiceUnavailableError(DomainError):
+    def __init__(self, message: str = "Service unavailable") -> None:
+        super().__init__(
+            message=message,
+            code="SERVICE_UNAVAILABLE",
+            status_code=503,
+        )
+
+
 class InternalError(DomainError):
     """Invariante de servidor violada (bug/integridade), não erro do cliente."""
 
