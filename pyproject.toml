@@ -1,7 +1,7 @@
 [project]
 name = "pizzaria-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "API de gestão de usuários, unidades, produtos e pedidos de pizzaria"
 readme = "README.md"
 requires-python = ">=3.13.1"
 dependencies = [
