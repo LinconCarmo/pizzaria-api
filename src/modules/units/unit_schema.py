@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -155,8 +155,6 @@ class CreateUnitRequest(BaseModel):
     )
     state: UF = Field(
         ...,
-        min_length=2,
-        max_length=2,
         description="Unit state (UF)",
         examples=["PR"],
     )
@@ -181,14 +179,30 @@ class CreateUnitRequest(BaseModel):
 
 class UpdateUnitRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    name: str | None = Field(default=None, min_length=1, max_length=120)
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="Unit name",
+        examples=["Main Unit"],
+    )
     cnpj: str | None = Field(
         default=None,
         description="Unit CNPJ",
         examples=["12345678000195", "12ABC34501DE35"],
     )
-    email: EmailStr | None = Field(default=None)
-    phone: str | None = Field(default=None, min_length=1, max_length=20)
+    email: EmailStr | None = Field(
+        default=None,
+        description="Unit email",
+        examples=["contato@pizzaria.com"],
+    )
+    phone: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=20,
+        description="Unit phone",
+        examples=["41999999999"],
+    )
     street: str | None = Field(
         default=None,
         min_length=1,
@@ -219,8 +233,6 @@ class UpdateUnitRequest(BaseModel):
     )
     state: UF | None = Field(
         default=None,
-        min_length=2,
-        max_length=2,
         description="Unit state (UF)",
         examples=["PR"],
     )
@@ -231,7 +243,11 @@ class UpdateUnitRequest(BaseModel):
         description="Unit ZIP code",
         examples=["80000000"],
     )
-    is_active: bool | None = None
+    is_active: bool | None = Field(
+        default=None,
+        description="Whether the unit is active",
+        examples=[False],
+    )
 
     @field_validator("cnpj", mode="before")
     @classmethod
@@ -249,21 +265,41 @@ class UpdateUnitRequest(BaseModel):
         return value.replace("-", "")
 
 
+_UnitName = Annotated[str, Field(description="Unit name", examples=["Main Unit"])]
+_UnitPhone = Annotated[str, Field(description="Unit phone", examples=["41999999999"])]
+_UnitStreet = Annotated[
+    str, Field(description="Unit street address", examples=["Rua XV de Novembro"])
+]
+_UnitNumber = Annotated[str, Field(description="Unit street number", examples=["100"])]
+_UnitNeighborhood = Annotated[str, Field(description="Unit neighborhood", examples=["Centro"])]
+_UnitCity = Annotated[str, Field(description="Unit city", examples=["Curitiba"])]
+_UnitState = Annotated[str, Field(description="Unit state (UF)", examples=["PR"])]
+_UnitZip = Annotated[str, Field(description="Unit ZIP code", examples=["80000000"])]
+
+
 class UnitResponse(BaseSchema):
-    id: UUID
-    name: str
-    cnpj: str
-    email: EmailStr
-    phone: str
-    street: str
-    number: str
-    neighborhood: str
-    city: str
-    state: str
-    zip: str
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    id: UUID = Field(
+        ...,
+        description="Unit ID (UUID)",
+        examples=["7c9e6679-7425-40de-944b-e07fc1f90ae7"],
+    )
+    name: _UnitName
+    cnpj: str = Field(..., description="Unit CNPJ (normalized)", examples=["12ABC34501DE35"])
+    email: EmailStr = Field(..., description="Unit email", examples=["contato@pizzaria.com"])
+    phone: _UnitPhone
+    street: _UnitStreet
+    number: _UnitNumber
+    neighborhood: _UnitNeighborhood
+    city: _UnitCity
+    state: _UnitState
+    zip: _UnitZip
+    is_active: bool = Field(..., description="Whether the unit is active", examples=[True])
+    created_at: datetime = Field(
+        ..., description="Creation timestamp", examples=["2026-05-20T12:00:00Z"]
+    )
+    updated_at: datetime = Field(
+        ..., description="Last update timestamp", examples=["2026-05-20T12:00:00Z"]
+    )
 
 
 class UnitListResponse(BaseModel):
@@ -272,11 +308,11 @@ class UnitListResponse(BaseModel):
 
 
 class UnitSummaryResponse(BaseModel):
-    name: str
-    phone: str
-    street: str
-    number: str
-    neighborhood: str
-    city: str
-    state: str
-    zip: str
+    name: _UnitName
+    phone: _UnitPhone
+    street: _UnitStreet
+    number: _UnitNumber
+    neighborhood: _UnitNeighborhood
+    city: _UnitCity
+    state: _UnitState
+    zip: _UnitZip
