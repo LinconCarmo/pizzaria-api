@@ -86,6 +86,21 @@ APP_ENV=development
 LOG_LEVEL=debug
 ```
 
+### E-mail (reset de senha)
+
+Sem `SMTP_HOST`/`SMTP_SENDER`, o e-mail de reset só é registrado no log, o que serve para desenvolvimento e testes. Com `APP_ENV=production`, as duas variáveis são obrigatórias e a aplicação não sobe sem elas.
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=usuario
+SMTP_PASSWORD=senha
+SMTP_SENDER=no-reply@pizzaria.com
+SMTP_USE_TLS=true
+# Opcional: com a URL, o e-mail leva o link <url>?token=<token>; sem ela, só o token.
+PASSWORD_RESET_URL=https://app.pizzaria.com/reset-password
+```
+
 ## Estrutura do projeto
 
 ```text
