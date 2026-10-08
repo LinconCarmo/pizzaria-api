@@ -1,9 +1,9 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import jwt
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
-from jose import jwt
 
 from src.core.config import settings
 from src.core.exceptions import ForbiddenError, UnauthorizedError
