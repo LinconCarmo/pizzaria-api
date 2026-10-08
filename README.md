@@ -102,6 +102,22 @@ SMTP_USE_TLS=true
 PASSWORD_RESET_URL=https://app.pizzaria.com/reset-password
 ```
 
+## Imagem Docker
+
+O [`Dockerfile`](Dockerfile) gera a imagem da API, que roda como usuário sem privilégio e traz healthcheck em `/health`. O deploy tem dois passos, na ordem:
+
+```bash
+docker build -t pizzaria-api .
+
+# 1. Banco: aplica migrations pendentes e semeia roles/unidade (idempotente)
+docker run --rm --env-file .env pizzaria-api ./scripts/db-setup.sh
+
+# 2. API
+docker run -d --env-file .env -p 8000:8000 pizzaria-api
+```
+
+O `DATABASE_URL` do `.env` precisa apontar para um host que o container alcance; `localhost` aponta para o próprio container.
+
 ## Estrutura do projeto
 
 ```text

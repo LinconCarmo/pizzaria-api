@@ -123,6 +123,15 @@ jobs:
       - name: Run integration tests
         run: uv run pytest -v -m integration
 
+  docker-build:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t pizzaria-api:ci .
+
   sonar:
     name: SonarCloud
     runs-on: ubuntu-latest
