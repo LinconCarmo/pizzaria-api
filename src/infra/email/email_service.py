@@ -4,12 +4,17 @@ from collections.abc import Callable
 from email.message import EmailMessage
 from typing import Protocol
 
+from src.core.exceptions import FeatureUnavailableError
 from src.core.logger import logger
 
 PASSWORD_RESET_SUBJECT = "Redefinição de senha"
 
+EMAIL_UNAVAILABLE_MESSAGE = "Password reset by email is not available: no SMTP server is configured"
+
 
 class EmailServiceProtocol(Protocol):
+    def is_available(self) -> bool: ...
+
     async def send_password_reset_email(
         self,
         email: str,
@@ -17,18 +22,22 @@ class EmailServiceProtocol(Protocol):
     ) -> None: ...
 
 
-class MockEmailService(EmailServiceProtocol):
-    """Não envia nada: só registra o evento. Usado fora de produção sem SMTP."""
+class DisabledEmailService(EmailServiceProtocol):
+    """Usado enquanto não há SMTP configurado.
+
+    A aplicação sobe normalmente; quem depende de e-mail consulta `is_available()`
+    antes de agir e responde que a funcionalidade não está disponível.
+    """
+
+    def is_available(self) -> bool:
+        return False
 
     async def send_password_reset_email(
         self,
         email: str,
         token: str,
     ) -> None:
-        logger.bind(
-            email=email,
-            token=token,
-        ).info("password_reset_email_sent")
+        raise FeatureUnavailableError(EMAIL_UNAVAILABLE_MESSAGE)
 
 
 class SmtpEmailService(EmailServiceProtocol):
@@ -52,6 +61,9 @@ class SmtpEmailService(EmailServiceProtocol):
         self._use_tls = use_tls
         self._reset_url = reset_url
         self._smtp_factory = smtp_factory
+
+    def is_available(self) -> bool:
+        return True
 
     async def send_password_reset_email(
         self,

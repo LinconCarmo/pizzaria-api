@@ -6,6 +6,7 @@ from prisma import Prisma
 
 from src.core.config import settings
 from src.core.logger import logger
+from src.infra.email.email_dependencies import warn_if_email_disabled
 from src.infra.seed import seed_roles
 
 db = Prisma()
@@ -21,6 +22,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("database_connected")
     try:
         await seed_roles(db)
+        warn_if_email_disabled()
         logger.bind(host=settings.host, port=settings.port).info("server_started")
 
         yield

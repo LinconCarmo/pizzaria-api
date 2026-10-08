@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from src.core.exceptions import (
     BadRequestError,
+    FeatureUnavailableError,
     ForbiddenError,
     InternalError,
     UnauthorizedError,
@@ -18,7 +19,7 @@ from src.core.security import (
     hash_reset_token,
     verify_password,
 )
-from src.infra.email.email_service import EmailServiceProtocol
+from src.infra.email.email_service import EMAIL_UNAVAILABLE_MESSAGE, EmailServiceProtocol
 from src.modules.auth.auth_schema import (
     ForgotPasswordDto,
     LoginDto,
@@ -126,6 +127,10 @@ class AuthService:
         self,
         data: ForgotPasswordDto,
     ) -> None:
+        # Antes de tudo: a resposta precisa ser a mesma exista o e-mail ou não.
+        if not self._email_service.is_available():
+            raise FeatureUnavailableError(EMAIL_UNAVAILABLE_MESSAGE)
+
         rate_limit_key = f"forgot-password:email:{data.email.lower()}"
         self._rate_limiter.check(rate_limit_key, FORGOT_PASSWORD_PER_EMAIL)
         self._rate_limiter.record(rate_limit_key, FORGOT_PASSWORD_PER_EMAIL)

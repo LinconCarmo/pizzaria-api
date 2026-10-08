@@ -121,6 +121,17 @@ class ServiceUnavailableError(DomainError):
         )
 
 
+class FeatureUnavailableError(DomainError):
+    """Funcionalidade desligada por falta de configuração (não é falha do servidor)."""
+
+    def __init__(self, message: str = "Feature not available") -> None:
+        super().__init__(
+            message=message,
+            code="FEATURE_UNAVAILABLE",
+            status_code=503,
+        )
+
+
 class InternalError(DomainError):
     """Invariante de servidor violada (bug/integridade), não erro do cliente."""
 

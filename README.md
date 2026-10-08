@@ -88,7 +88,7 @@ LOG_LEVEL=debug
 
 ### E-mail (reset de senha)
 
-Sem `SMTP_HOST`/`SMTP_SENDER`, o e-mail de reset só é registrado no log, o que serve para desenvolvimento e testes. Com `APP_ENV=production`, as duas variáveis são obrigatórias e a aplicação não sobe sem elas.
+O envio de e-mail já está implementado e liga sozinho quando `SMTP_HOST` e `SMTP_SENDER` estão definidos. Sem as duas, em qualquer ambiente, a aplicação sobe normalmente e registra o aviso `email_delivery_disabled` no startup. O pedido de reset de senha (`POST /api/v1/auth/forgot-password`) responde `503` com o código `FEATURE_UNAVAILABLE`, informando que a funcionalidade não está disponível.
 
 ```env
 SMTP_HOST=smtp.example.com

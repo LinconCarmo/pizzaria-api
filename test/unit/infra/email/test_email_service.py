@@ -2,7 +2,14 @@ import smtplib
 from email.message import EmailMessage
 from unittest.mock import MagicMock
 
-from src.infra.email.email_service import PASSWORD_RESET_SUBJECT, SmtpEmailService
+import pytest
+
+from src.core.exceptions import FeatureUnavailableError
+from src.infra.email.email_service import (
+    PASSWORD_RESET_SUBJECT,
+    DisabledEmailService,
+    SmtpEmailService,
+)
 
 HOST = "smtp.example.com"
 PORT = 587
@@ -71,3 +78,13 @@ async def test_send_password_reset_email_builds_link_when_reset_url_configured()
     await service.send_password_reset_email(email=RECIPIENT, token=TOKEN)
 
     assert f"{RESET_URL}?token={TOKEN}" in _sent_message(smtp).get_content()
+
+
+async def test_disabled_email_service_raises_503_when_sending() -> None:
+    service = DisabledEmailService()
+
+    with pytest.raises(FeatureUnavailableError) as exc_info:
+        await service.send_password_reset_email(email=RECIPIENT, token=TOKEN)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "FEATURE_UNAVAILABLE"

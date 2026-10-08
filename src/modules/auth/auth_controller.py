@@ -75,7 +75,13 @@ async def refresh_token(
     summary="Request password reset",
     description="Responde 204 mesmo quando o e-mail não existe, para não revelar contas.",
     dependencies=[Depends(limit_forgot_password_by_ip)],
-    responses={429: _TOO_MANY_REQUESTS},
+    responses={
+        429: _TOO_MANY_REQUESTS,
+        503: {
+            "model": ErrorResponse,
+            "description": "Envio de e-mail desligado (SMTP não configurado)",
+        },
+    },
 )
 async def forgot_password(
     data: ForgotPasswordDto,

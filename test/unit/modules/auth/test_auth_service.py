@@ -6,6 +6,7 @@ import pytest
 
 from src.core.exceptions import (
     BadRequestError,
+    FeatureUnavailableError,
     ForbiddenError,
     InternalError,
     TooManyRequestsError,
@@ -64,7 +65,9 @@ def reset_tokens() -> AsyncMock:
 
 @pytest.fixture
 def email_service() -> AsyncMock:
-    return AsyncMock(spec=EmailServiceProtocol)
+    mock = AsyncMock(spec=EmailServiceProtocol)
+    mock.is_available.return_value = True
+    return mock
 
 
 @pytest.fixture
@@ -248,6 +251,18 @@ async def test_forgot_password_does_nothing_when_email_unknown(
 
     reset_tokens.create.assert_not_awaited()
     email_service.send_password_reset_email.assert_not_awaited()
+
+
+async def test_forgot_password_raises_503_before_lookup_when_email_unavailable(
+    service: AuthService, users: AsyncMock, reset_tokens: AsyncMock, email_service: AsyncMock
+) -> None:
+    email_service.is_available.return_value = False
+
+    with pytest.raises(FeatureUnavailableError):
+        await service.forgot_password(ForgotPasswordDto(email=EMAIL))
+
+    users.get_by_email.assert_not_awaited()
+    reset_tokens.create.assert_not_awaited()
 
 
 async def test_forgot_password_raises_429_after_max_requests_for_email(

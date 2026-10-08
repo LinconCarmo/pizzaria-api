@@ -5,6 +5,9 @@ from httpx import AsyncClient
 from prisma import Prisma
 
 from src.core.security import create_refresh_token, hash_reset_token
+from src.infra.email.email_dependencies import get_email_service
+from src.infra.email.email_service import DisabledEmailService
+from src.main import app
 from test.factories import make_create_user_request
 
 pytestmark = pytest.mark.integration
@@ -509,3 +512,21 @@ async def test_forgot_password_returns_429_after_repeated_requests_for_same_emai
     response = await client.post("/api/v1/auth/forgot-password", json=payload)
 
     assert response.status_code == 429
+
+
+async def test_forgot_password_returns_503_when_email_delivery_disabled(
+    client: AsyncClient,
+) -> None:
+    await _create_user(client, email="ana@example.com")
+    previous = app.dependency_overrides[get_email_service]
+    app.dependency_overrides[get_email_service] = lambda: DisabledEmailService()
+
+    try:
+        response = await client.post(
+            "/api/v1/auth/forgot-password", json={"email": "ana@example.com"}
+        )
+    finally:
+        app.dependency_overrides[get_email_service] = previous
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "FEATURE_UNAVAILABLE"
