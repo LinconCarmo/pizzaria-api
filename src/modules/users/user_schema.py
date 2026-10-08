@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from src.shared.types import PaginationMeta
+
 
 class UserRole(StrEnum):
     CUSTOMER = "CUSTOMER"
@@ -69,13 +71,6 @@ class UserResponse(_BaseSchema):
     updated_at: datetime = Field(
         ..., description="Last update timestamp", examples=["2026-05-20T12:00:00Z"]
     )
-
-
-class PaginationMeta(_BaseSchema):
-    page: int = Field(..., ge=1, description="Current page number", examples=[1])
-    page_size: int = Field(..., ge=1, le=100, description="Items per page", examples=[20])
-    total: int = Field(..., ge=0, description="Total matching items", examples=[45])
-    total_pages: int = Field(..., ge=0, description="Total number of pages", examples=[3])
 
 
 class UserListResponse(_BaseSchema):

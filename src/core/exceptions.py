@@ -43,6 +43,15 @@ class NotFoundError(DomainError):
         )
 
 
+class BadRequestError(DomainError):
+    def __init__(self, message: str = "Bad request") -> None:
+        super().__init__(
+            message=message,
+            code="BAD_REQUEST",
+            status_code=400,
+        )
+
+
 class ConflictError(DomainError):
     def __init__(self, message: str = "Conflict detected") -> None:
         super().__init__(
@@ -110,13 +119,26 @@ async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
+    details = []
+
+    for error in exc.errors():
+        error = error.copy()
+        ctx = error.get("ctx")
+
+        if isinstance(ctx, dict) and "error" in ctx:
+            ctx = ctx.copy()
+            ctx["error"] = str(ctx["error"])
+            error["ctx"] = ctx
+
+        details.append(error)
+
     return JSONResponse(
         status_code=422,
         content={
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Validation failed",
-                "details": exc.errors(),
+                "details": details,
             }
         },
     )

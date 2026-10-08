@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID, uuid4
 
-from src.core.exceptions import ForbiddenError, UnauthorizedError
+from src.core.exceptions import BadRequestError, ForbiddenError, UnauthorizedError
 from src.core.logger import logger
 from src.core.security import (
     create_access_token,
@@ -19,6 +19,7 @@ from src.modules.auth.auth_schema import (
     LoginResponseDto,
     LoginUserResponse,
     RefreshTokenDto,
+    ResetPasswordDto,
 )
 from src.modules.auth.password_reset_token_repository import (
     PasswordResetTokenRepositoryProtocol,
@@ -26,6 +27,8 @@ from src.modules.auth.password_reset_token_repository import (
 from src.modules.users.user_repository import UserRepositoryProtocol
 
 _INVALID_TOKEN_MESSAGE = "Invalid token"
+
+_INACTIVE_USER_MESSAGE = "User is inactive"
 
 
 class AuthService:
@@ -80,7 +83,7 @@ class AuthService:
             raise UnauthorizedError("Invalid credentials")
 
         if not user["isActive"]:
-            raise ForbiddenError("User is inactive")
+            raise ForbiddenError(_INACTIVE_USER_MESSAGE)
 
         return self._issue_tokens(
             user_id=user_id,
@@ -199,4 +202,55 @@ class AuthService:
                 sub=str(user_id),
             ),
             expires_in=900,
+        )
+
+    async def reset_password(
+        self,
+        data: ResetPasswordDto,
+    ) -> None:
+
+        token_hash = hash_reset_token(data.token)
+
+        reset_token = await self._password_reset_repository.get_by_token_hash(token_hash=token_hash)
+
+        if reset_token is None:
+            raise BadRequestError(_INVALID_TOKEN_MESSAGE)
+
+        if reset_token["usedAt"] is not None:
+            raise BadRequestError(_INVALID_TOKEN_MESSAGE)
+
+        now = datetime.now(UTC)
+        expires_at = cast(
+            datetime,
+            reset_token["expiresAt"],
+        )
+
+        if expires_at < now:
+            raise BadRequestError(_INVALID_TOKEN_MESSAGE)
+
+        reset_user_id = cast(UUID, reset_token["userId"])
+
+        user = await self._repository.get_by_id(
+            reset_user_id,
+        )
+
+        if user is None:
+            raise BadRequestError(_INVALID_TOKEN_MESSAGE)
+
+        if not user["isActive"]:
+            raise ForbiddenError(_INACTIVE_USER_MESSAGE)
+
+        hashed_password = hash_password(data.new_password)
+
+        user_id = cast(
+            UUID,
+            user["id"],
+        )
+
+        token_id = cast(UUID, reset_token["id"])
+
+        await self._password_reset_repository.reset_password(
+            user_id=user_id,
+            token_id=token_id,
+            hashed_password=hashed_password,
         )
