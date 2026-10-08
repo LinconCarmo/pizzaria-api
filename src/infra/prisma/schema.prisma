@@ -8,6 +8,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Sem uso no código: o healthcheck (`/health`, `/health/ready`) não grava nada.
+/// Candidata a remoção; apagar a tabela exige migration própria, decidida à parte.
 model HealthCheck {
   id        String   @id @default(uuid()) @db.Char(36)
   status    String
@@ -72,6 +74,8 @@ model Role {
   @@map("roles")
 }
 
+/// Permissão granular (ex.: `orders:cancel`). Base reservada para autorização por
+/// permissão; hoje a autorização usa só `Role.name`, e nenhum código lê esta tabela.
 model Permission {
   id          String   @id @default(uuid()) @db.Char(36)
   code        String   @unique
@@ -84,6 +88,7 @@ model Permission {
   @@map("permissions")
 }
 
+/// Associação N:N entre `Role` e `Permission`. Reservada junto com `Permission`.
 model RolePermission {
   roleId       String     @map("role_id") @db.Char(36)
   permissionId String     @map("permission_id") @db.Char(36)
