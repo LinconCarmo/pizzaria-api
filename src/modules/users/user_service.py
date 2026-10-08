@@ -44,15 +44,9 @@ class UserService:
             page_size=page_size,
             role=role,
         )
-        total_pages = (total + page_size - 1) // page_size if total else 0
         return UserListResponse(
             items=[self._to_response(item) for item in items_raw],
-            meta=PaginationMeta(
-                page=page,
-                page_size=page_size,
-                total=total,
-                total_pages=total_pages,
-            ),
+            meta=PaginationMeta.build(page=page, page_size=page_size, total=total),
         )
 
     async def update(self, user_id: UUID, data: UpdateUserRequest) -> UserResponse:

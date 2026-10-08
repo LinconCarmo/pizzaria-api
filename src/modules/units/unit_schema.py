@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from src.shared.types import PaginationMeta
+from src.shared.types import BaseSchema, PaginationMeta
 
 UF = Literal[
     "AC",
@@ -97,10 +97,6 @@ def _normalize_and_validate_cnpj(value: object) -> str:
         raise ValueError("CNPJ must be a string")
     normalized = normalize_cnpj(value)
     return validate_cnpj(normalized)
-
-
-class _BaseSchema(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
 
 
 class CreateUnitRequest(BaseModel):
@@ -253,7 +249,7 @@ class UpdateUnitRequest(BaseModel):
         return value.replace("-", "")
 
 
-class UnitResponse(_BaseSchema):
+class UnitResponse(BaseSchema):
     id: UUID
     name: str
     cnpj: str
