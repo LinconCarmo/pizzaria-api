@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from src.core.exceptions import BadRequestError, ForbiddenError, UnauthorizedError
 from src.core.logger import logger
+from src.core.rate_limit import RateLimiterProtocol, RateLimitPolicy
 from src.core.security import (
     create_access_token,
     create_refresh_token,
@@ -30,6 +31,12 @@ _INVALID_TOKEN_MESSAGE = "Invalid token"
 
 _INACTIVE_USER_MESSAGE = "User is inactive"
 
+_INVALID_CREDENTIALS_MESSAGE = "Invalid credentials"
+
+LOGIN_FAILURES_PER_EMAIL = RateLimitPolicy(max_attempts=5, window_seconds=15 * 60)
+
+FORGOT_PASSWORD_PER_EMAIL = RateLimitPolicy(max_attempts=3, window_seconds=60 * 60)
+
 
 class AuthService:
     def __init__(
@@ -37,19 +44,24 @@ class AuthService:
         repository: UserRepositoryProtocol,
         password_reset_repository: PasswordResetTokenRepositoryProtocol,
         email_service: EmailServiceProtocol,
+        rate_limiter: RateLimiterProtocol,
     ) -> None:
         self._repository = repository
         self._password_reset_repository = password_reset_repository
         self._email_service = email_service
+        self._rate_limiter = rate_limiter
 
     async def login(
         self,
         data: LoginDto,
     ) -> LoginResponseDto:
+        rate_limit_key = f"login:email:{data.email.lower()}"
+        self._rate_limiter.check(rate_limit_key, LOGIN_FAILURES_PER_EMAIL)
+
         user = await self._repository.get_by_email(data.email)
 
         if user is None:
-            raise UnauthorizedError("Invalid credentials")
+            raise self._login_failed(rate_limit_key)
 
         hashed_password = cast(
             str,
@@ -80,10 +92,12 @@ class AuthService:
             data.password,
             hashed_password,
         ):
-            raise UnauthorizedError("Invalid credentials")
+            raise self._login_failed(rate_limit_key)
 
         if not user["isActive"]:
             raise ForbiddenError(_INACTIVE_USER_MESSAGE)
+
+        self._rate_limiter.reset(rate_limit_key)
 
         return self._issue_tokens(
             user_id=user_id,
@@ -149,6 +163,10 @@ class AuthService:
         self,
         data: ForgotPasswordDto,
     ) -> None:
+        rate_limit_key = f"forgot-password:email:{data.email.lower()}"
+        self._rate_limiter.check(rate_limit_key, FORGOT_PASSWORD_PER_EMAIL)
+        self._rate_limiter.record(rate_limit_key, FORGOT_PASSWORD_PER_EMAIL)
+
         user = await self._repository.get_by_email(data.email)
 
         if user is None:
@@ -180,6 +198,10 @@ class AuthService:
             email=data.email,
             token=token,
         )
+
+    def _login_failed(self, rate_limit_key: str) -> UnauthorizedError:
+        self._rate_limiter.record(rate_limit_key, LOGIN_FAILURES_PER_EMAIL)
+        return UnauthorizedError(_INVALID_CREDENTIALS_MESSAGE)
 
     def _issue_tokens(
         self,

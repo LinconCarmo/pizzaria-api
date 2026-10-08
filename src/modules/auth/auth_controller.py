@@ -4,7 +4,11 @@ from fastapi import APIRouter, Depends, status
 
 from src.core.exceptions import ErrorResponse
 
-from .auth_dependencies import get_auth_service
+from .auth_dependencies import (
+    get_auth_service,
+    limit_forgot_password_by_ip,
+    limit_login_by_ip,
+)
 from .auth_schema import (
     ForgotPasswordDto,
     LoginDto,
@@ -24,6 +28,7 @@ router = APIRouter(
     "/login",
     response_model=LoginResponseDto,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(limit_login_by_ip)],
 )
 async def login(
     data: LoginDto,
@@ -53,6 +58,7 @@ async def refresh_token(
 @router.post(
     "/forgot-password",
     status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(limit_forgot_password_by_ip)],
 )
 async def forgot_password(
     data: ForgotPasswordDto,

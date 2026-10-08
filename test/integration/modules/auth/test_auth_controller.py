@@ -9,6 +9,10 @@ from test.factories import make_create_user_request
 
 pytestmark = pytest.mark.integration
 
+LOGIN_FAILURES_ALLOWED_PER_EMAIL = 5
+LOGIN_ATTEMPTS_ALLOWED_PER_IP = 20
+FORGOT_PASSWORD_ALLOWED_PER_EMAIL = 3
+
 
 async def _create_user(
     client: AsyncClient,
@@ -434,3 +438,74 @@ async def test_reset_password_returns_422_when_password_is_too_short(
     body = response.json()
 
     assert body["error"]["code"] == "VALIDATION_ERROR"
+
+
+async def test_login_returns_429_after_repeated_failures_for_same_email(
+    client: AsyncClient,
+) -> None:
+    await _create_user(client, email="ana@example.com", password="strongpass123")
+    wrong = {"email": "ana@example.com", "password": "wrong-password"}
+    for _ in range(LOGIN_FAILURES_ALLOWED_PER_EMAIL):
+        await client.post("/api/v1/auth/login", json=wrong)
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "ana@example.com", "password": "strongpass123"},
+    )
+
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "TOO_MANY_REQUESTS"
+    assert "Retry-After" in response.headers
+
+
+async def test_login_resets_failure_counter_after_successful_login(
+    client: AsyncClient,
+) -> None:
+    await _create_user(client, email="ana@example.com", password="strongpass123")
+    wrong = {"email": "ana@example.com", "password": "wrong-password"}
+    right = {"email": "ana@example.com", "password": "strongpass123"}
+    for _ in range(LOGIN_FAILURES_ALLOWED_PER_EMAIL - 1):
+        await client.post("/api/v1/auth/login", json=wrong)
+    await client.post("/api/v1/auth/login", json=right)
+
+    response = await client.post("/api/v1/auth/login", json=wrong)
+
+    assert response.status_code == 401
+
+
+async def test_login_returns_429_when_ip_exceeds_attempts(client: AsyncClient) -> None:
+    for attempt in range(LOGIN_ATTEMPTS_ALLOWED_PER_IP):
+        await client.post(
+            "/api/v1/auth/login",
+            json={"email": f"user{attempt}@example.com", "password": "whatever"},
+        )
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "another@example.com", "password": "whatever"},
+    )
+
+    assert response.status_code == 429
+
+
+async def test_login_returns_422_when_password_exceeds_max_length(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "ana@example.com", "password": "x" * 129},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_forgot_password_returns_429_after_repeated_requests_for_same_email(
+    client: AsyncClient,
+) -> None:
+    payload = {"email": "ana@example.com"}
+    for _ in range(FORGOT_PASSWORD_ALLOWED_PER_EMAIL):
+        await client.post("/api/v1/auth/forgot-password", json=payload)
+
+    response = await client.post("/api/v1/auth/forgot-password", json=payload)
+
+    assert response.status_code == 429

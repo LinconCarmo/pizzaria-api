@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from prisma import Prisma
 from testcontainers.mysql import MySqlContainer
 
+from src.core.rate_limit import rate_limiter
 from src.infra.seed import DEFAULT_UNIT
 from src.infra.seed import seed_roles as seed_default_roles
 from src.infra.seed import seed_unit as seed_default_unit
@@ -59,6 +60,8 @@ async def seed_roles(db: Prisma) -> None:
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database(db: Prisma) -> AsyncGenerator[None]:
+    rate_limiter.clear()
+
     yield
 
     await db.user.delete_many()
