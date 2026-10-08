@@ -3,7 +3,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^(src/infra/prisma/migrations/.*|LICENSE|\.python-version|\.github/workflows/ci\.yml|docker-compose\.yml|\.env\.example)$
       - id: end-of-file-fixer
+        exclude: ^(src/infra/prisma/migrations/.*|LICENSE|\.python-version|\.github/workflows/ci\.yml|docker-compose\.yml|\.env\.example)$
+
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
