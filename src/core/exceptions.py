@@ -27,11 +27,14 @@ class DomainError(Exception):
         code: str = "DOMAIN_ERROR",
         status_code: int = 400,
         details: Any | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
+        super().__init__(message)
         self.message = message
         self.code = code
         self.status_code = status_code
         self.details = details
+        self.headers = headers
 
 
 class NotFoundError(DomainError):
@@ -84,6 +87,51 @@ class UnauthorizedError(DomainError):
         )
 
 
+class ForbiddenError(DomainError):
+    def __init__(self, message: str = "Forbidden") -> None:
+        super().__init__(
+            message=message,
+            code="FORBIDDEN",
+            status_code=403,
+        )
+
+
+class TooManyRequestsError(DomainError):
+    def __init__(
+        self,
+        message: str = "Too many requests",
+        *,
+        retry_after_seconds: int,
+    ) -> None:
+        super().__init__(
+            message=message,
+            code="TOO_MANY_REQUESTS",
+            status_code=429,
+            details={"retry_after_seconds": retry_after_seconds},
+            headers={"Retry-After": str(retry_after_seconds)},
+        )
+
+
+class ServiceUnavailableError(DomainError):
+    def __init__(self, message: str = "Service unavailable") -> None:
+        super().__init__(
+            message=message,
+            code="SERVICE_UNAVAILABLE",
+            status_code=503,
+        )
+
+
+class FeatureUnavailableError(DomainError):
+    """Funcionalidade desligada por falta de configuração (não é falha do servidor)."""
+
+    def __init__(self, message: str = "Feature not available") -> None:
+        super().__init__(
+            message=message,
+            code="FEATURE_UNAVAILABLE",
+            status_code=503,
+        )
+
+
 class InternalError(DomainError):
     """Invariante de servidor violada (bug/integridade), não erro do cliente."""
 
@@ -105,6 +153,7 @@ def error_response(error: DomainError) -> JSONResponse:
                 "details": error.details,
             }
         },
+        headers=error.headers,
     )
 
 
@@ -159,12 +208,3 @@ async def generic_exception_handler(
             }
         },
     )
-
-
-class ForbiddenError(DomainError):
-    def __init__(self, message: str = "Forbidden") -> None:
-        super().__init__(
-            message=message,
-            code="FORBIDDEN",
-            status_code=403,
-        )

@@ -68,6 +68,10 @@ operações **destrutivas/perigosas**:
 
 - `DROP COLUMN` / `DROP TABLE` → perda de dados.
 - `ALTER ... NOT NULL` em coluna existente sem default → falha se houver linhas.
+- `ADD COLUMN ... NOT NULL` sem `DEFAULT` → falha em tabela com linhas. Definir default no
+  `schema.prisma` ou dividir em duas migrations (coluna nula + backfill, depois `NOT NULL`).
+- `DROP INDEX` de índice que outra migration recria logo depois → sinal de diff gerado contra
+  um banco local fora de sincronia; resetar o banco local e regerar.
 - Renomeações que o Prisma interpreta como drop+create.
 
 Se o SQL não refletir a intenção, ajustar o `schema.prisma` e voltar ao passo 2 (apagar a pasta da
@@ -120,7 +124,7 @@ quebra o histórico de migration e a suíte de integração.
 
 - [ ] `schema.prisma` segue [§5.9](../../../docs/architecture/modular-monolith.md#59-convenções-de-schemaprisma) (PK UUID, `@map`, `Decimal` p/ dinheiro, índice em `deletedAt` se soft delete).
 - [ ] `poe prisma-format` rodado.
-- [ ] Migration gerada **com nome** descritivo em snake_case.
+- [ ] Migration gerada **com nome** descritivo em snake_case (o teste `test_migrations.py` reprova pasta sem nome).
 - [ ] `migration.sql` revisado — nenhuma operação destrutiva não-intencional.
 - [ ] `poe prisma-migrate-run` aplicou sem erro.
 - [ ] `poe prisma-generate` rodado; `poe type-check` passa.

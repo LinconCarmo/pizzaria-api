@@ -2,19 +2,15 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field
 
-from src.shared.types import PaginationMeta
+from src.shared.types import BaseSchema, PaginationMeta
 
 
 class UserRole(StrEnum):
     CUSTOMER = "CUSTOMER"
     STAFF = "STAFF"
     ADMIN = "ADMIN"
-
-
-class _BaseSchema(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
 
 
 class CreateUserRequest(BaseModel):
@@ -55,7 +51,7 @@ class UpdateUserRequest(BaseModel):
     role: UserRole | None = Field(default=None, description="New user role", examples=["STAFF"])
 
 
-class UserResponse(_BaseSchema):
+class UserResponse(BaseSchema):
     id: UUID = Field(
         ...,
         description="User ID (UUID)",
@@ -73,6 +69,6 @@ class UserResponse(_BaseSchema):
     )
 
 
-class UserListResponse(_BaseSchema):
+class UserListResponse(BaseSchema):
     items: list[UserResponse] = Field(..., description="Users in the current page")
     meta: PaginationMeta = Field(..., description="Pagination metadata")

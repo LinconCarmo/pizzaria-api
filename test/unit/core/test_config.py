@@ -4,6 +4,13 @@ from pydantic import ValidationError
 from src.core.config import Settings
 
 
+def _set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "mysql://test")
+    monkeypatch.setenv("REDIS_URL", "redis://test")
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://test")
+    monkeypatch.setenv("JWT_SECRET", "secret")
+
+
 def test_settings_loads_required_fields(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "mysql://test")
     monkeypatch.setenv("REDIS_URL", "redis://test")
@@ -69,3 +76,15 @@ def test_settings_accepts_database_url_test(monkeypatch):
     s = Settings()
 
     assert s.database_url_test == "mysql://test_db"
+
+
+def test_settings_accepts_production_without_smtp(monkeypatch):
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    monkeypatch.delenv("SMTP_SENDER", raising=False)
+
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+
+    assert s.smtp_host is None
+    assert s.smtp_sender is None

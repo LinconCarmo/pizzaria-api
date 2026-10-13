@@ -1,22 +1,22 @@
 import hashlib
 from datetime import UTC, datetime, timedelta
-from typing import cast
 
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import jwt
+from pwdlib import PasswordHash
+from pwdlib.hashers.argon2 import Argon2Hasher
 
 from src.core.config import settings
 from src.core.exceptions import UnauthorizedError
 
-_pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+_password_hash = PasswordHash((Argon2Hasher(),))
 
 
 def hash_password(plain: str) -> str:
-    return cast(str, _pwd_context.hash(plain))
+    return _password_hash.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return cast(bool, _pwd_context.verify(plain, hashed))
+    return _password_hash.verify(plain, hashed)
 
 
 def hash_reset_token(token: str) -> str:
@@ -45,9 +45,7 @@ def create_refresh_token(sub: str, exp_days: int = 7) -> str:
 
 def decode_token(token: str) -> dict[str, object]:
     try:
-        payload = cast(
-            dict[str, object], jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
-        )
+        payload: dict[str, object] = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
         return payload
-    except JWTError as exc:
+    except jwt.PyJWTError as exc:
         raise UnauthorizedError("Invalid or expired token") from exc

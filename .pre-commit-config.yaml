@@ -19,17 +19,13 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
+  # mypy roda pelo ambiente do projeto (uv), com o client Prisma gerado e a
+  # mesma versão do CI; o mirror isolado divergia em versão e dependências.
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - pydantic>=2.0
-          - pydantic-settings>=2.0
-          - fastapi>=0.110
-          - loguru>=0.7.3
-          - python-jose[cryptography]>=3.5.0
-          - types-python-jose>=3.5.0.20260408
-          - passlib[argon2,bcrypt]>=1.7.4
-        args: [--config-file=pyproject.toml]
+        name: mypy
+        entry: uv run mypy src
+        language: system
+        pass_filenames: false
         files: ^src/

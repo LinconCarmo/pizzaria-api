@@ -34,9 +34,7 @@ src/
 │   ├── database.py            # instância singleton do client Prisma
 │   └── prisma/                # schema.prisma + migrations
 ├── shared/                    # utilidades genuinamente transversais
-│   ├── types.py               # tipos compartilhados (BaseSchema, etc.)
-│   ├── decorators.py
-│   └── utils.py
+│   └── types.py               # tipos compartilhados (BaseSchema, PaginationMeta)
 └── modules/                   # features (bounded contexts)
     ├── health/
     └── users/

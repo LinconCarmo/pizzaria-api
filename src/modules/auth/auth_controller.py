@@ -4,7 +4,11 @@ from fastapi import APIRouter, Depends, status
 
 from src.core.exceptions import ErrorResponse
 
-from .auth_dependencies import get_auth_service
+from .auth_dependencies import (
+    get_auth_service,
+    limit_forgot_password_by_ip,
+    limit_login_by_ip,
+)
 from .auth_schema import (
     ForgotPasswordDto,
     LoginDto,
@@ -19,11 +23,22 @@ router = APIRouter(
     tags=["Auth"],
 )
 
+_TOO_MANY_REQUESTS = {
+    "model": ErrorResponse,
+    "description": "Limite de tentativas excedido; ver header Retry-After",
+}
+
 
 @router.post(
     "/login",
-    response_model=LoginResponseDto,
     status_code=status.HTTP_200_OK,
+    summary="Log in",
+    dependencies=[Depends(limit_login_by_ip)],
+    responses={
+        401: {"model": ErrorResponse, "description": "Credenciais inválidas"},
+        403: {"model": ErrorResponse, "description": "Usuário inativo"},
+        429: _TOO_MANY_REQUESTS,
+    },
 )
 async def login(
     data: LoginDto,
@@ -37,8 +52,12 @@ async def login(
 
 @router.post(
     "/refresh-token",
-    response_model=LoginResponseDto,
     status_code=status.HTTP_200_OK,
+    summary="Refresh access token",
+    responses={
+        401: {"model": ErrorResponse, "description": "Refresh token inválido ou expirado"},
+        403: {"model": ErrorResponse, "description": "Usuário inativo"},
+    },
 )
 async def refresh_token(
     data: RefreshTokenDto,
@@ -53,6 +72,16 @@ async def refresh_token(
 @router.post(
     "/forgot-password",
     status_code=status.HTTP_204_NO_CONTENT,
+    summary="Request password reset",
+    description="Responde 204 mesmo quando o e-mail não existe, para não revelar contas.",
+    dependencies=[Depends(limit_forgot_password_by_ip)],
+    responses={
+        429: _TOO_MANY_REQUESTS,
+        503: {
+            "model": ErrorResponse,
+            "description": "Envio de e-mail desligado (SMTP não configurado)",
+        },
+    },
 )
 async def forgot_password(
     data: ForgotPasswordDto,
@@ -67,8 +96,11 @@ async def forgot_password(
 @router.post(
     "/reset-password",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Define nova senha a partir do token de reset",
-    responses={400: {"model": ErrorResponse}},
+    summary="Reset password",
+    responses={
+        400: {"model": ErrorResponse, "description": "Token inválido, usado ou expirado"},
+        403: {"model": ErrorResponse, "description": "Usuário inativo"},
+    },
 )
 async def reset_password(
     data: ResetPasswordDto,

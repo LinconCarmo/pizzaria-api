@@ -1,13 +1,20 @@
 from unittest.mock import AsyncMock
 
 from prisma import Prisma
+from prisma.actions import RoleActions, UnitActions
 
 from src.infra.seed import DEFAULT_UNIT, ROLES, seed_roles, seed_unit
 
 
-async def test_seed_roles_upserts_each_default_role():
+def _db() -> AsyncMock:
     db = AsyncMock(spec=Prisma)
-    db.role.upsert = AsyncMock()
+    db.role = AsyncMock(spec=RoleActions)
+    db.unit = AsyncMock(spec=UnitActions)
+    return db
+
+
+async def test_seed_roles_upserts_each_default_role():
+    db = _db()
 
     await seed_roles(db)
 
@@ -17,8 +24,7 @@ async def test_seed_roles_upserts_each_default_role():
 
 
 async def test_seed_roles_is_idempotent_with_empty_update():
-    db = AsyncMock(spec=Prisma)
-    db.role.upsert = AsyncMock()
+    db = _db()
 
     await seed_roles(db)
 
@@ -28,8 +34,7 @@ async def test_seed_roles_is_idempotent_with_empty_update():
 
 
 async def test_seed_unit_upserts_default_unit():
-    db = AsyncMock(spec=Prisma)
-    db.unit.upsert = AsyncMock()
+    db = _db()
 
     await seed_unit(db)
 
@@ -40,8 +45,7 @@ async def test_seed_unit_upserts_default_unit():
 
 
 async def test_seed_unit_is_idempotent_with_empty_update():
-    db = AsyncMock(spec=Prisma)
-    db.unit.upsert = AsyncMock()
+    db = _db()
 
     await seed_unit(db)
 

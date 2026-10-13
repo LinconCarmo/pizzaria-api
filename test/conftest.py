@@ -16,6 +16,6 @@ import os
 os.environ.setdefault("DATABASE_URL", "mysql://test:test@localhost:3306/test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production")
+os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production-0123456789")
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
