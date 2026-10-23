@@ -27,14 +27,35 @@ def _normalize_ingredient_name(value: str) -> str:
 
 
 class CreateIngredientRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Ingredient name",
+        examples=["Mussarela"],
+    )
     unit: IngredientUnit = Field(
         description="Unit of measure used to track the ingredient's stock",
         examples=[IngredientUnit.KG],
     )
-    cost_per_unit: Decimal = Field(ge=0)
-    stock_min: Decimal = Field(default=Decimal("0"), ge=0)
-    stock_quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    cost_per_unit: Decimal = Field(
+        ...,
+        ge=0,
+        description="Cost per unit of measurement",
+        examples=["35.50"],
+    )
+    stock_min: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        description="Minimum stock quantity",
+        examples=["2.000"],
+    )
+    stock_quantity: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        description="Current stock quantity",
+        examples=["10.000"],
+    )
 
     @field_validator("name")
     @classmethod
@@ -43,11 +64,36 @@ class CreateIngredientRequest(BaseModel):
 
 
 class UpdateIngredientRequest(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=100)
-    unit: IngredientUnit | None = None
-    cost_per_unit: Decimal | None = Field(default=None, ge=0)
-    stock_min: Decimal | None = Field(default=None, ge=0)
-    stock_quantity: Decimal | None = Field(default=None, ge=0)
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Updated ingredient name",
+        examples=["Mussarela"],
+    )
+    unit: IngredientUnit | None = Field(
+        default=None,
+        description="Updated unit of measure",
+        examples=[IngredientUnit.KG],
+    )
+    cost_per_unit: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="Updated cost per unit of measurement",
+        examples=["35.50"],
+    )
+    stock_min: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="Updated minimum stock quantity",
+        examples=["2.000"],
+    )
+    stock_quantity: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="Updated current stock quantity",
+        examples=["10.000"],
+    )
 
     @field_validator("name")
     @classmethod
@@ -73,13 +119,19 @@ _IngredientStockQuantity = Annotated[
 
 class IngredientResponse(BaseSchema):
     id: UUID = Field(
-        ..., description="Ingredient ID(UUID)", examples=["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+        ...,
+        description="Ingredient ID (UUID)",
+        examples=["7c9e6679-7425-40de-944b-e07fc1f90ae7"],
     )
     name: _IngredientName
-    unit: IngredientUnit
+    unit: IngredientUnit = Field(
+        ...,
+        description="Unit of measure used to track the ingredient's stock",
+        examples=[IngredientUnit.KG],
+    )
     unit_id: UUID = Field(
         ...,
-        description="ID da unidade de negócio (UUID)",
+        description="Business unit ID (UUID)",
         examples=["7c9e6679-7425-40de-944b-e07fc1f90ae7"],
     )
     cost_per_unit: _IngredientCostPerUnit

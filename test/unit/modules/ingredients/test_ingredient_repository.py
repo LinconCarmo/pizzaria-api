@@ -13,18 +13,20 @@ from src.core.exceptions import ConflictError
 from src.modules.ingredients.ingredient_repository import IngredientRepository
 from src.modules.ingredients.ingredient_schema import IngredientUnit
 from test.factories import (
+    DEFAULT_INGREDIENT_ID,
     DEFAULT_INGREDIENT_UNIT_ID,
     make_ingredient_row,
 )
 
+INGREDIENT_ID = DEFAULT_INGREDIENT_ID
 UNIT_ID = DEFAULT_INGREDIENT_UNIT_ID
 NON_EXISTENT_INGREDIENT_ID = UUID("00000000-0000-4000-8000-000000000099")
 PRISMA_ERROR_DATA = {"user_facing_error": {"message": "prisma error"}}
 
 
-def _row() -> MagicMock:
+def _row(ingredient_id: UUID = INGREDIENT_ID) -> MagicMock:
     row = MagicMock(spec=Ingredient)
-    row.model_dump.return_value = make_ingredient_row()
+    row.model_dump.return_value = make_ingredient_row(id=ingredient_id)
     return row
 
 
@@ -90,6 +92,20 @@ async def test_get_by_id_returns_none_when_ingredient_missing(
         "id": str(NON_EXISTENT_INGREDIENT_ID),
         "deletedAt": None,
     }
+
+
+async def test_get_by_id_returns_ingredient_when_found(
+    repository: IngredientRepository, ingredients: AsyncMock
+) -> None:
+    ingredients.find_first.return_value = _row(INGREDIENT_ID)
+
+    result = await repository.get_by_id(INGREDIENT_ID)
+
+    assert result is not None
+    assert result["id"] == str(INGREDIENT_ID)
+    ingredients.find_first.assert_awaited_once_with(
+        where={"id": str(INGREDIENT_ID), "deletedAt": None}
+    )
 
 
 async def test_get_by_name_filters_active_ingredient_by_unit_by_default(
