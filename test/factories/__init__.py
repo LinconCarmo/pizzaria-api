@@ -1,3 +1,9 @@
+from test.factories.ingredient_factory import (
+    DEFAULT_INGREDIENT_ID,
+    DEFAULT_INGREDIENT_UNIT_ID,
+    make_create_ingredient_request,
+    make_ingredient_row,
+)
 from test.factories.password_reset_token_factory import make_password_reset_token_row
 from test.factories.unit_factory import (
     ALPHANUMERIC_CNPJ,
@@ -16,10 +22,14 @@ from test.factories.user_factory import (
 
 __all__ = [
     "ALPHANUMERIC_CNPJ",
+    "DEFAULT_INGREDIENT_ID",
+    "DEFAULT_INGREDIENT_UNIT_ID",
     "MASKED_ALPHANUMERIC_CNPJ",
     "NOW",
+    "make_create_ingredient_request",
     "make_create_unit_request",
     "make_create_user_request",
+    "make_ingredient_row",
     "make_password_reset_token_row",
     "make_unit_row",
     "make_update_user_request",

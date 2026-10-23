@@ -1,6 +1,7 @@
 generator client {
-  provider             = "prisma-client-py"
-  recursive_type_depth = 5
+  provider                    = "prisma-client-py"
+  recursive_type_depth        = 5
+  enable_experimental_decimal = true
 }
 
 datasource db {
@@ -53,12 +54,42 @@ model Unit {
 
   isActive Boolean @default(true) @map("is_active")
 
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  ingredients Ingredient[]
 
   @@index([deletedAt])
   @@map("units")
+}
+
+enum IngredientUnit {
+  KG
+  G
+  L
+  ML
+  UN
+}
+
+model Ingredient {
+  id            String         @id @default(uuid()) @db.Char(36)
+  name          String         @db.VarChar(100)
+  unit          IngredientUnit
+  costPerUnit   Decimal        @map("cost_per_unit") @db.Decimal(10, 2)
+  stockQuantity Decimal        @default(0) @map("stock_quantity") @db.Decimal(10, 3)
+  stockMin      Decimal        @default(0) @map("stock_min") @db.Decimal(10, 3)
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at")
+
+  unitId       String @map("unit_id") @db.Char(36)
+  businessUnit Unit   @relation(fields: [unitId], references: [id])
+
+  @@unique([name, unitId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("ingredients")
 }
 
 model Role {
