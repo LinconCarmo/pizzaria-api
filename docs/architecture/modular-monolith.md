@@ -809,5 +809,5 @@ Até lá, o padrão flat documentado nas seções 1–11 é a referência.
 ## 14. Referências internas
 
 - Skills: `[.claude/skills/create-module/SKILL.md](../../.claude/skills/create-module/SKILL.md)`, `[create-endpoint](../../.claude/skills/create-endpoint/SKILL.md)`, `[pydantic-schema](../../.claude/skills/pydantic-schema/SKILL.md)`, `[pytest-unit](../../.claude/skills/pytest-unit/SKILL.md)`, `[pytest-integration](../../.claude/skills/pytest-integration/SKILL.md)`, `[logger-level-choice](../../.claude/skills/logger-level-choice/SKILL.md)`, `[logger-message-structure](../../.claude/skills/logger-message-structure/SKILL.md)`, `[logger-config-performance](../../.claude/skills/logger-config-performance/SKILL.md)`.
-- Agents: `[fastapi-architect](../../.claude/agents/fastapi-architect.md)`, `[pizzaria-reviewer](../../.claude/agents/pizzaria-reviewer.md)`.
+- Skills de planejamento e revisão: `[fastapi-architect](../../.claude/skills/fastapi-architect/SKILL.md)`, `[pizzaria-reviewer](../../.claude/skills/pizzaria-reviewer/SKILL.md)`.
 - ADRs: `[docs/adr/0001-adotar-modular-monolith-em-camadas.md](../adr/0001-adotar-modular-monolith-em-camadas.md)`, `[docs/adr/0002-padroes-de-logging.md](../adr/0002-padroes-de-logging.md)`.

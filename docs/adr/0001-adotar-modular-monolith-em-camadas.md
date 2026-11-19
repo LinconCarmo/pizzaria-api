@@ -64,4 +64,4 @@ Este ADR registra a **decisão** de adotar o padrão; o guideline e as skills po
 
 - Guideline operacional: [`docs/architecture/modular-monolith.md`](../architecture/modular-monolith.md)
 - Skill de scaffold: [`.claude/skills/create-module/SKILL.md`](../../.claude/skills/create-module/SKILL.md)
-- Agent de revisão: [`.claude/agents/pizzaria-reviewer.md`](../../.claude/agents/pizzaria-reviewer.md)
+- Skill de revisão: [`.claude/skills/pizzaria-reviewer/SKILL.md`](../../.claude/skills/pizzaria-reviewer/SKILL.md)

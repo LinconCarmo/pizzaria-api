@@ -69,7 +69,6 @@ Regras completas em [`conventions.md#testes`](docs/architecture/conventions.md#t
 
 ## Tooling específico do Claude Code (opcional)
 
-Os arquivos abaixo só fazem sentido dentro do Claude Code (usam frontmatter proprietário `tools`/`model`/`color`). Outros agents podem ignorá-los.
+O arquivo abaixo só faz sentido dentro do Claude Code. Outros agents podem ignorá-lo.
 
-- [`.claude/agents/fastapi-architect.md`](.claude/agents/fastapi-architect.md) — sub-agent de planejamento exclusivo para Claude Code. Para uso em outros providers, prefer a skill vendor-neutra [`.claude/skills/fastapi-architect/SKILL.md`](.claude/skills/fastapi-architect/SKILL.md).
 - `CLAUDE.md` — wrapper de 1 linha que importa este arquivo (`@AGENTS.md`). Existe porque Claude Code não lê `AGENTS.md` nativamente.

@@ -1,6 +1,6 @@
 ---
 name: logger-message-structure
-description: Estruturar a mensagem e o contexto de cada chamada de log no pizzaria-api — formato `event_name` em inglês, contexto via `logger.bind(...)`, `logger.exception()` para tracebacks, sem f-strings com dados, sem PII/credenciais em logs. Use quando estiver escrevendo a chamada `logger.X(...)` em si: como nomear o evento, quais campos passar, como tratar exceções, como respeitar o pipeline de sanitização.
+description: "Estruturar a mensagem e o contexto de cada chamada de log no pizzaria-api — formato `event_name` em inglês, contexto via `logger.bind(...)`, `logger.exception()` para tracebacks, sem f-strings com dados, sem PII/credenciais em logs. Use quando estiver escrevendo a chamada `logger.X(...)` em si: como nomear o evento, quais campos passar, como tratar exceções, como respeitar o pipeline de sanitização."
 ---
 
 # Logger Message Structure Skill
